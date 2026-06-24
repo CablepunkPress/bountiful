@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "bountiful"
+version = "0.1.0"
+description = "Protocol to follow and message individual websites."
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography>=44.0",
+    "flask>=3.1",
+    "requests>=2.32",
+]
