@@ -84,6 +84,14 @@ def main():
     )
     print(f"  reply:  {result['message']}")
 
+    # Verify the reply landed
+    inbound_a = db_a.list_letters(direction="inbound")
+    if inbound_a:
+        letter = inbound_a[0]
+        print(f"    from:    {letter['from_domain']}")
+        print(f"    subject: {letter['subject']}")
+        print(f"    body:    {letter['body']}")
+
     # Step 7 — final state
     print("\n--- Step 7: Final state ---")
 
