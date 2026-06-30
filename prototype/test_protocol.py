@@ -50,7 +50,7 @@ def main():
         SITE_A,
         SITE_B,
         subject="Hello from the other side",
-        body="This is the first letter sent via the Bountiful protocol.",
+        body="This is a test of the Bountiful protocol messenger system.",
     )
     print(f"  {result['message']}")
     if not result["ok"]:
