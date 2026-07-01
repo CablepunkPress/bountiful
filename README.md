@@ -1,6 +1,6 @@
 # Bountiful
 
-A protocol and personal computing environment for the independent web.
+A protocol and personal software environment for the independent web.
 
 Bountiful lets personal websites discover each other, establish follow relationships, and exchange private signed letters — no platform, no algorithm, no middleman. 
 
@@ -153,7 +153,7 @@ Technology stack: Flask, Jinja2 templates, CSS, and JavaScript as glue. AI agent
 ```
 bountiful/
 ├── bountiful/
-│   ├── init.py
+│   ├── __init__.py
 │   ├── crypto.py          # Ed25519 signing and verification
 │   ├── db.py              # SQLite storage layer
 │   ├── models.py          # Protocol envelope definitions
