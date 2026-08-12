@@ -106,6 +106,29 @@ def create_venv() -> None:
     print("    dependencies installed")
 
 
+def install_tool_dependencies() -> None:
+    """Install pip dependencies declared in tools/*/tool.json."""
+    tools_dir = ROOT / "tools"
+    if not tools_dir.is_dir():
+        return
+
+    all_deps: list[str] = []
+    for manifest_path in tools_dir.glob("*/tool.json"):
+        manifest = json.loads(manifest_path.read_text())
+        all_deps.extend(manifest.get("dependencies", []))
+
+    if not all_deps:
+        return
+
+    unique = sorted(set(all_deps))
+    print(f"    installing tool dependencies: {', '.join(unique)}")
+    result = subprocess.run(
+        [str(venv_python()), "-m", "pip", "install"] + unique,
+    )
+    if result.returncode != 0:
+        fail("tool dependency install failed — see output above")
+
+
 def build_llama_cpp() -> None:
     step(3, "Shared inference infrastructure: llama.cpp (CPU)")
 
