@@ -89,10 +89,11 @@ def extract_group(tar: tarfile.TarFile, group_name: str) -> None:
             target.mkdir(parents=True, exist_ok=True)
         elif member.isfile():
             target.parent.mkdir(parents=True, exist_ok=True)
-            with tar.extractfile(member) as src:
-                if src is None:
-                    continue
-                target.write_bytes(src.read())
+            src = tar.extractfile(member)
+            if src is None:
+                continue
+            target.write_bytes(src.read())
+            src.close()
 
     print(f"Installed tools/{group_name}/")
 
@@ -160,10 +161,11 @@ def cmd_list() -> None:
 
         description = ""
         if member:
-            with tar.extractfile(member) as f:
-                if f:
-                    manifest = json.loads(f.read())
-                    description = manifest.get("description", "")
+            f = tar.extractfile(member)
+            if f:
+                manifest = json.loads(f.read())
+                description = manifest.get("description", "")
+                f.close()
 
         installed = (TOOLS_DIR / name).exists()
         status = " (installed)" if installed else ""
