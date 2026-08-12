@@ -1,12 +1,10 @@
 """Store this agent's API keys in the OS keyring.
 
-Prompts for each key the agent needs, shows which are already set,
-skips blanks. Run after build.py, re-run any time to add or rotate
-keys. Keys never touch disk — they live in the OS-native encrypted
-keyring (KWallet, GNOME Keyring, or macOS Keychain).
+Scans tools/*/tool.json for secret declarations and merges them
+with the agent's own keys. Shows what's set, prompts for what's
+missing. Run any time to add or rotate keys.
 
-Tool groups that need their own secrets (see tools/README.md) use
-their own keyring service names — add their entries to KEYS below.
+    python setup_keys.py
 """
 
 import getpass
@@ -25,7 +23,7 @@ def _venv_python() -> Path:
     return VENV / "bin" / "python"
 
 
-# Re-exec inside the venv — keyring is installed there, not in system Python.
+# Re-exec inside the venv — keyring is installed there.
 if sys.prefix == sys.base_prefix:
     interpreter = _venv_python()
     if not interpreter.exists():
@@ -40,11 +38,28 @@ import keyring.errors
 AGENT_ID = json.loads((ROOT / "dashboard.json").read_text())["id"]
 
 # (keyring_service, key_name, human_label)
-# The agent's own keys use AGENT_ID as the service. Tool-group keys
-# use the group's own service name so the group is portable.
-KEYS = [
+KEYS: list[tuple[str, str, str]] = [
     (AGENT_ID, "anthropic_api_key", "Anthropic API key"),
 ]
+
+
+def _discover_tool_secrets() -> list[tuple[str, str, str]]:
+    """Scan tools/*/tool.json for secret declarations."""
+    tools_dir = ROOT / "tools"
+    if not tools_dir.is_dir():
+        return []
+
+    secrets = []
+    for manifest_path in sorted(tools_dir.glob("*/tool.json")):
+        manifest = json.loads(manifest_path.read_text())
+        group_name = manifest_path.parent.name
+        for s in manifest.get("secrets", []):
+            secrets.append((
+                s["service"],
+                s["key"],
+                f"{s['label']} ({group_name})",
+            ))
+    return secrets
 
 
 def main() -> None:
@@ -58,7 +73,9 @@ def main() -> None:
             "Make sure KWallet, GNOME Keyring, or Keychain is available."
         )
 
-    for service, key_name, label in KEYS:
+    all_keys = KEYS + _discover_tool_secrets()
+
+    for service, key_name, label in all_keys:
         existing = keyring.get_password(service, key_name)
         status = "set" if existing else "not set"
         print(f"  {label} [{status}]")
