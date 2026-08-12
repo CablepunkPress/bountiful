@@ -197,6 +197,7 @@ def main() -> None:
     AGENT_HOME.mkdir(exist_ok=True)
     check_prerequisites()
     create_venv()
+    install_tool_dependencies()
     build_llama_cpp()
     download_model()
     print(
