@@ -205,9 +205,9 @@ def main() -> None:
     if not args or args[0] in ("-h", "--help"):
         print(
             "Usage:\n"
-            "  python add_tool.py <group>         Install a tool group\n"
-            "  python add_tool.py <group> --force  Overwrite existing\n"
-            "  python add_tool.py --list           Show available groups"
+            "  python add_tool.py <group>            Install a tool group\n"
+            "  python add_tool.py <group> --force    Overwrite existing\n"
+            "  python add_tool.py --list             Show available groups"
         )
         return
 
