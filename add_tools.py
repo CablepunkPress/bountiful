@@ -2,7 +2,7 @@
 
 Downloads the tool group from CablepunkPress/extend-a-bot on GitHub
 and copies it into this agent's tools/ directory. After installation,
-edit the configuration values and run setup_keys.py for any new secrets.
+edit the configuration values and run add_secrets.py for any new secrets.
 
 Usage:
     python add_tools.py github
@@ -126,7 +126,7 @@ def print_next_steps(group_dir: Path) -> None:
 
     if secrets:
         steps.append(
-            f"Run: python setup_keys.py   ({len(secrets)} key(s) needed)"
+            f"Run: python add_secrets.py   ({len(secrets)} key(s) needed)"
         )
 
     if deps:
@@ -172,7 +172,7 @@ def cmd_list() -> None:
         print(f"  {name}{status}")
         if description:
             print(f"    {description}")
-    print(f"\nInstall with: python add_tool.py <name>")
+    print(f"\nInstall with: python add_tools.py <name>")
 
 
 def cmd_install(group_name: str, force: bool = False) -> None:
@@ -182,7 +182,7 @@ def cmd_install(group_name: str, force: bool = False) -> None:
     if dest.exists() and not force:
         fail(
             f"tools/{group_name}/ already exists. Your edits would be lost.\n"
-            f"To overwrite: python add_tool.py {group_name} --force"
+            f"To overwrite: python add_tools.py {group_name} --force"
         )
 
     tar = fetch_tarball()
@@ -192,7 +192,7 @@ def cmd_install(group_name: str, force: bool = False) -> None:
         fail(
             f"Tool group '{group_name}' not found.\n"
             f"Available: {', '.join(groups) or 'none'}\n"
-            f"Run: python add_tool.py --list"
+            f"Run: python add_tools.py --list"
         )
 
     extract_group(tar, group_name)
