@@ -15,7 +15,6 @@ Runs with system Python — no venv needed.
 
 import io
 import json
-import os
 import sys
 import tarfile
 import urllib.error
