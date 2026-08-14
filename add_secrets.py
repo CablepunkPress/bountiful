@@ -4,7 +4,7 @@ Scans tools/*/tool.json for secret declarations and merges them
 with the agent's own keys. Shows what's set, prompts for what's
 missing. Run any time to add or rotate keys.
 
-    python setup_keys.py
+    python add_secrets.py
 """
 
 import getpass
