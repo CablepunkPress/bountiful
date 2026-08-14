@@ -7,6 +7,7 @@ edit the configuration values and run add_secrets.py for any new secrets.
 Usage:
     python add_tools.py github
     python add_tools.py github --force    (overwrite existing)
+    python add_tools.py github --update   (update code, preserve config)
     python add_tools.py --list            (show available groups)
 
 Runs with system Python — no venv needed.
@@ -199,6 +200,71 @@ def cmd_install(group_name: str, force: bool = False) -> None:
     print_next_steps(dest)
 
 
+def cmd_update(group_name: str) -> None:
+    """Update a tool group, preserving user config files."""
+    dest = TOOLS_DIR / group_name
+
+    if not dest.exists():
+        fail(
+            f"tools/{group_name}/ does not exist. Install it first:\n"
+            f"  python add_tools.py {group_name}"
+        )
+
+    # Read the existing manifest to find protected files
+    manifest_path = dest / "tool.json"
+    protected = set()
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+        protected = {c["file"] for c in manifest.get("config", [])}
+
+    tar = fetch_tarball()
+    groups = list_groups(tar)
+
+    if group_name not in groups:
+        fail(f"Tool group '{group_name}' not found in extend-a-bot")
+
+    prefix = f"{REPO_NAME}-{REPO_BRANCH}/{group_name}/"
+    members = [
+        m for m in tar.getmembers()
+        if m.name.startswith(prefix) and m.name != prefix and m.isfile()
+    ]
+
+    updated = []
+    skipped = []
+
+    for member in members:
+        relative = member.name[len(prefix):]
+        target = dest / relative
+
+        if relative in protected:
+            skipped.append(relative)
+            continue
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        src = tar.extractfile(member)
+        if src is None:
+            continue
+        target.write_bytes(src.read())
+        src.close()
+        updated.append(relative)
+
+    print(f"Updated tools/{group_name}/:")
+    for f in updated:
+        print(f"  updated: {f}")
+    for f in skipped:
+        print(f"  preserved: {f}")
+
+    # Check if new manifest has config entries the old one didn't
+    new_manifest_path = dest / "tool.json"
+    if new_manifest_path.exists():
+        new_manifest = json.loads(new_manifest_path.read_text())
+        new_config = {c["file"] for c in new_manifest.get("config", [])}
+        added_config = new_config - protected
+        if added_config:
+            print(f"\n  New config file(s) added: {', '.join(added_config)}")
+            print("  Review and fill in your values.")
+
+
 def main() -> None:
     args = sys.argv[1:]
 
@@ -207,6 +273,7 @@ def main() -> None:
             "Usage:\n"
             "  python add_tools.py <group>            Install a tool group\n"
             "  python add_tools.py <group> --force    Overwrite existing\n"
+            "  python add_tools.py <group> --update   Update code, preserve config\n"
             "  python add_tools.py --list             Show available groups"
         )
         return
@@ -216,6 +283,11 @@ def main() -> None:
         return
 
     group_name = args[0]
+
+    if "--update" in args:
+        cmd_update(group_name)
+        return
+
     force = "--force" in args
     cmd_install(group_name, force)
 
