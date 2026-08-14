@@ -13,7 +13,7 @@ Files starting with _ are shared modules — tool files in the same group
 import them directly: `from _auth import auth_headers`.
 
 Tool groups that need API keys use their own keyring service name.
-Add the group's keys to setup_keys.py KEYS and re-run it.
+Add the group's keys to add_secrets.py KEYS and re-run it.
 
 The agent discovers everything here at startup. No registration,
 no imports, no configuration — the directory is the installation.
