@@ -87,8 +87,8 @@ def first_run_setup() -> str:
         fail(
             f"~/.{dir_name}/ already exists — another agent is using this name.\n"
             f"Rename this repo's directory and run build.py again:\n\n"
-            f"    mv {ROOT} /{parent}/{suggestion}-2\n"
-            f"    cd /{parent}/{suggestion}-2\n"
+            f"    mv {ROOT} /{parent}/{suggestion}\n"
+            f"    cd /{parent}/{suggestion}\n"
             f"    python build.py"
         )
 
