@@ -13,7 +13,7 @@ Run with the system Python:
 
 Then store your API keys:
 
-    python setup_keys.py
+    python add_secrets.py
 """
 
 import json
@@ -26,9 +26,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV = ROOT / ".venv"
-
-AGENT_ID = json.loads((ROOT / "dashboard.json").read_text())["id"]
-AGENT_HOME = Path.home() / f".{AGENT_ID}"
 
 # Shared Bountiful infrastructure — one copy serves every agent
 BOUNTIFUL_HOME = Path.home() / ".bountiful"
@@ -63,6 +60,40 @@ def venv_python() -> Path:
     if os.name == "nt":
         return VENV / "Scripts" / "python.exe"
     return VENV / "bin" / "python"
+
+
+def first_run_setup() -> str:
+    """Name the agent on first run, based on the directory name.
+
+    Returns the agent ID (from dashboard.json, possibly just updated).
+    """
+    dashboard_path = ROOT / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text())
+
+    if dashboard["id"] != "my-agent":
+        return dashboard["id"]
+
+    dir_name = ROOT.name
+    display_name = dir_name.replace("-", " ").replace("_", " ").title()
+
+    print(f"Naming this agent: {display_name} (id: {dir_name})")
+    confirm = input("Accept? [Y/n] ").strip().lower()
+    if confirm == "n":
+        dir_name = input("Agent id (lowercase, no spaces): ").strip()
+        display_name = input("Display name: ").strip()
+
+    dashboard["id"] = dir_name
+    dashboard["name"] = display_name
+    dashboard_path.write_text(json.dumps(dashboard, indent=4) + "\n")
+
+    # Update pyproject.toml
+    toml_path = ROOT / "pyproject.toml"
+    content = toml_path.read_text()
+    content = content.replace('name = "my-agent"', f'name = "{dir_name}"')
+    toml_path.write_text(content)
+
+    print(f"  Updated dashboard.json and pyproject.toml\n")
+    return dir_name
 
 
 def check_prerequisites() -> None:
@@ -193,8 +224,11 @@ def download_model() -> None:
 
 
 def main() -> None:
-    print(f"{AGENT_ID} — setup")
-    AGENT_HOME.mkdir(exist_ok=True)
+    agent_id = first_run_setup()
+    agent_home = Path.home() / f".{agent_id}"
+
+    print(f"{agent_id} — setup")
+    agent_home.mkdir(exist_ok=True)
     check_prerequisites()
     create_venv()
     install_tool_dependencies()
@@ -202,7 +236,7 @@ def main() -> None:
     download_model()
     print(
         "\nSetup complete. Store your API keys, then start the agent:\n"
-        "\n    python setup_keys.py"
+        "\n    python add_secrets.py"
         "\n    python run.py\n"
     )
 
