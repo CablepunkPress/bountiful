@@ -73,14 +73,33 @@ def first_run_setup() -> str:
     if dashboard["id"] != "my-agent":
         return dashboard["id"]
 
-    dir_name = ROOT.name
+    dir_name = ROOT.name.lower()
     display_name = dir_name.replace("-", " ").replace("_", " ").title()
+
+    # Check for collision with an existing agent
+    agent_home = Path.home() / f".{dir_name}"
+    if agent_home.exists():
+        fail(
+            f"~/.{dir_name}/ already exists — another agent is using this name.\n"
+            f"Rename this repo's directory and run build.py again:\n\n"
+            f"    mv {ROOT} /path/to/{dir_name}-2\n"
+            f"    cd /path/to/{dir_name}-2\n"
+            f"    python build.py"
+        )
 
     print(f"Naming this agent: {display_name} (id: {dir_name})")
     confirm = input("Accept? [Y/n] ").strip().lower()
     if confirm == "n":
-        dir_name = input("Agent id (lowercase, no spaces): ").strip()
+        dir_name = input("Agent id (lowercase, no spaces): ").strip().lower()
         display_name = input("Display name: ").strip()
+
+        # Check collision again with the manually entered name
+        agent_home = Path.home() / f".{dir_name}"
+        if agent_home.exists():
+            fail(
+                f"~/.{dir_name}/ already exists — another agent is using this name.\n"
+                f"Choose a different name and run build.py again."
+            )
 
     dashboard["id"] = dir_name
     dashboard["name"] = display_name
