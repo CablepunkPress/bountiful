@@ -79,11 +79,16 @@ def first_run_setup() -> str:
     # Check for collision with an existing agent
     agent_home = Path.home() / f".{dir_name}"
     if agent_home.exists():
+        parent = ROOT.parent
+        suffix = 2
+        while (parent / f"{dir_name}-{suffix}").exists():
+            suffix += 1
+        suggestion = f"{dir_name}-{suffix}"
         fail(
             f"~/.{dir_name}/ already exists — another agent is using this name.\n"
             f"Rename this repo's directory and run build.py again:\n\n"
-            f"    mv {ROOT} /path/to/{dir_name}-2\n"
-            f"    cd /path/to/{dir_name}-2\n"
+            f"    mv {ROOT} /{parent}/{suggestion}-2\n"
+            f"    cd /{parent}/{suggestion}-2\n"
             f"    python build.py"
         )
 
