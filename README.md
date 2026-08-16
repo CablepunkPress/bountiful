@@ -134,3 +134,8 @@ mv ~/.new-name/old-name.db ~/.new-name/new-name.db
 | `add_secrets.py` | Store API keys in the system keyring |
 | `pyproject.toml` | Python dependencies: engine and UI versions |
 | `tools/` | Plugin tool groups (optional) |
+
+
+## License
+
+MIT
