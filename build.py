@@ -110,6 +110,12 @@ def first_run_setup() -> str:
     dashboard["name"] = display_name
     dashboard_path.write_text(json.dumps(dashboard, indent=4) + "\n")
 
+    # Remove upstream funding metadata
+    github_dir = ROOT / ".github"
+    if github_dir.is_dir():
+        shutil.rmtree(github_dir)
+        print("  Removed .github/")
+
     # Update pyproject.toml
     toml_path = ROOT / "pyproject.toml"
     content = toml_path.read_text()
