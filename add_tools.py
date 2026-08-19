@@ -1,295 +1,33 @@
 """Install a tool group from the extend-a-bot repository.
 
-Downloads the tool group from CablepunkPress/extend-a-bot on GitHub
-and copies it into this agent's tools/ directory. After installation,
-edit the configuration values and run add_secrets.py for any new secrets.
-
-Usage:
+    python add_tools.py --list
     python add_tools.py github
-    python add_tools.py github --force    (overwrite existing)
-    python add_tools.py github --update   (update code, preserve config)
-    python add_tools.py --list            (show available groups)
-
-Runs with system Python — no venv needed.
+    python add_tools.py github --update
+    python add_tools.py github --force
+    
 """
 
-import io
-import json
+import os
 import sys
-import tarfile
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-TOOLS_DIR = ROOT / "tools"
-
-REPO_OWNER = "CablepunkPress"
-REPO_NAME = "extend-a-bot"
-REPO_BRANCH = "main"
-TARBALL_URL = (
-    f"https://github.com/{REPO_OWNER}/{REPO_NAME}"
-    f"/archive/refs/heads/{REPO_BRANCH}.tar.gz"
-)
+VENV = ROOT / ".venv"
 
 
-def fail(message: str) -> None:
-    sys.exit(f"\nERROR: {message}")
+def _venv_python():
+    if os.name == "nt":
+        return VENV / "Scripts" / "python.exe"
+    return VENV / "bin" / "python"
 
 
-def fetch_tarball() -> tarfile.TarFile:
-    """Download the extend-a-bot repo as a tarball."""
-    print(f"Fetching {REPO_OWNER}/{REPO_NAME}...")
-    try:
-        with urllib.request.urlopen(TARBALL_URL) as response:
-            data = response.read()
-    except urllib.error.URLError as e:
-        fail(f"Could not download extend-a-bot: {e}")
+if sys.prefix == sys.base_prefix:
+    interpreter = _venv_python()
+    if not interpreter.exists():
+        sys.exit("No .venv found — run 'python build.py' first.")
+    os.execv(str(interpreter), [str(interpreter), *sys.argv])
 
-    return tarfile.open(fileobj=io.BytesIO(data), mode="r:gz")
+# --- Inside venv ---
+from basic_bot.setup.tools import run
 
-
-def list_groups(tar: tarfile.TarFile) -> list[str]:
-    """Find all tool groups in the tarball (directories with tool.json)."""
-    # GitHub tarballs have a top-level directory: extend-a-bot-main/
-    prefix = f"{REPO_NAME}-{REPO_BRANCH}/"
-    groups = set()
-
-    for member in tar.getmembers():
-        if not member.name.startswith(prefix):
-            continue
-        relative = member.name[len(prefix):]
-        parts = relative.split("/")
-        if len(parts) == 2 and parts[1] == "tool.json":
-            groups.add(parts[0])
-
-    return sorted(groups)
-
-
-def extract_group(tar: tarfile.TarFile, group_name: str) -> None:
-    """Extract one tool group into tools/."""
-    prefix = f"{REPO_NAME}-{REPO_BRANCH}/{group_name}/"
-    dest = TOOLS_DIR / group_name
-
-    members = [
-        m for m in tar.getmembers()
-        if m.name.startswith(prefix) and m.name != prefix
-    ]
-
-    if not members:
-        fail(f"Tool group '{group_name}' not found in extend-a-bot")
-
-    dest.mkdir(parents=True, exist_ok=True)
-
-    for member in members:
-        relative = member.name[len(prefix):]
-        target = dest / relative
-
-        if member.isdir():
-            target.mkdir(parents=True, exist_ok=True)
-        elif member.isfile():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            src = tar.extractfile(member)
-            if src is None:
-                continue
-            target.write_bytes(src.read())
-            src.close()
-
-    print(f"Installed tools/{group_name}/")
-
-
-def print_next_steps(group_dir: Path) -> None:
-    """Read tool.json and print what the user does next."""
-    manifest_path = group_dir / "tool.json"
-    if not manifest_path.exists():
-        return
-
-    manifest = json.loads(manifest_path.read_text())
-
-    print(f"\n--- {manifest.get('name', group_dir.name)} ---")
-    print(f"{manifest.get('description', '')}")
-
-    config_items = manifest.get("config", [])
-    secrets = manifest.get("secrets", [])
-    deps = manifest.get("dependencies", [])
-
-    steps = []
-
-    if config_items:
-        files = sorted(set(c["file"] for c in config_items))
-        lines = []
-        for c in config_items:
-            lines.append(f"     {c['name']} — {c['label']}")
-        steps.append(
-            f"Edit tools/{group_dir.name}/{files[0]}:\n" + "\n".join(lines)
-        )
-
-    if secrets:
-        steps.append(
-            f"Run: python add_secrets.py   ({len(secrets)} key(s) needed)"
-        )
-
-    if deps:
-        steps.append(
-            f"Run: python build.py        (installs: {', '.join(deps)})"
-        )
-
-    if steps:
-        print("\nNext steps:")
-        for i, s in enumerate(steps, 1):
-            print(f"  {i}. {s}")
-    print()
-
-
-def cmd_list() -> None:
-    """List available tool groups."""
-    tar = fetch_tarball()
-    groups = list_groups(tar)
-
-    if not groups:
-        print("No tool groups found in extend-a-bot.")
-        return
-
-    print(f"\nAvailable tool groups ({len(groups)}):\n")
-    for name in groups:
-        prefix = f"{REPO_NAME}-{REPO_BRANCH}/{name}/tool.json"
-        member = None
-        try:
-            member = tar.getmember(prefix)
-        except KeyError:
-            pass
-
-        description = ""
-        if member:
-            f = tar.extractfile(member)
-            if f:
-                manifest = json.loads(f.read())
-                description = manifest.get("description", "")
-                f.close()
-
-        installed = (TOOLS_DIR / name).exists()
-        status = " (installed)" if installed else ""
-        print(f"  {name}{status}")
-        if description:
-            print(f"    {description}")
-    print(f"\nInstall with: python add_tools.py <name>")
-
-
-def cmd_install(group_name: str, force: bool = False) -> None:
-    """Install a tool group."""
-    dest = TOOLS_DIR / group_name
-
-    if dest.exists() and not force:
-        fail(
-            f"tools/{group_name}/ already exists. Your edits would be lost.\n"
-            f"To overwrite: python add_tools.py {group_name} --force"
-        )
-
-    tar = fetch_tarball()
-    groups = list_groups(tar)
-
-    if group_name not in groups:
-        fail(
-            f"Tool group '{group_name}' not found.\n"
-            f"Available: {', '.join(groups) or 'none'}\n"
-            f"Run: python add_tools.py --list"
-        )
-
-    extract_group(tar, group_name)
-    print_next_steps(dest)
-
-
-def cmd_update(group_name: str) -> None:
-    """Update a tool group, preserving user config files."""
-    dest = TOOLS_DIR / group_name
-
-    if not dest.exists():
-        fail(
-            f"tools/{group_name}/ does not exist. Install it first:\n"
-            f"  python add_tools.py {group_name}"
-        )
-
-    # Read the existing manifest to find protected files
-    manifest_path = dest / "tool.json"
-    protected = set()
-    if manifest_path.exists():
-        manifest = json.loads(manifest_path.read_text())
-        protected = {c["file"] for c in manifest.get("config", [])}
-
-    tar = fetch_tarball()
-    groups = list_groups(tar)
-
-    if group_name not in groups:
-        fail(f"Tool group '{group_name}' not found in extend-a-bot")
-
-    prefix = f"{REPO_NAME}-{REPO_BRANCH}/{group_name}/"
-    members = [
-        m for m in tar.getmembers()
-        if m.name.startswith(prefix) and m.name != prefix and m.isfile()
-    ]
-
-    updated = []
-    skipped = []
-
-    for member in members:
-        relative = member.name[len(prefix):]
-        target = dest / relative
-
-        if relative in protected:
-            skipped.append(relative)
-            continue
-
-        target.parent.mkdir(parents=True, exist_ok=True)
-        src = tar.extractfile(member)
-        if src is None:
-            continue
-        target.write_bytes(src.read())
-        src.close()
-        updated.append(relative)
-
-    print(f"Updated tools/{group_name}/:")
-    for f in updated:
-        print(f"  updated: {f}")
-    for f in skipped:
-        print(f"  preserved: {f}")
-
-    # Check if new manifest has config entries the old one didn't
-    new_manifest_path = dest / "tool.json"
-    if new_manifest_path.exists():
-        new_manifest = json.loads(new_manifest_path.read_text())
-        new_config = {c["file"] for c in new_manifest.get("config", [])}
-        added_config = new_config - protected
-        if added_config:
-            print(f"\n  New config file(s) added: {', '.join(added_config)}")
-            print("  Review and fill in your values.")
-
-
-def main() -> None:
-    args = sys.argv[1:]
-
-    if not args or args[0] in ("-h", "--help"):
-        print(
-            "Usage:\n"
-            "  python add_tools.py <group>            Install a tool group\n"
-            "  python add_tools.py <group> --force    Overwrite existing\n"
-            "  python add_tools.py <group> --update   Update code, preserve config\n"
-            "  python add_tools.py --list             Show available groups"
-        )
-        return
-
-    if args[0] == "--list":
-        cmd_list()
-        return
-
-    group_name = args[0]
-
-    if "--update" in args:
-        cmd_update(group_name)
-        return
-
-    force = "--force" in args
-    cmd_install(group_name, force)
-
-
-if __name__ == "__main__":
-    main()
+run(ROOT, sys.argv[1:])
