@@ -8,8 +8,8 @@ version = "0.3.0.dev0"
 description = "A Basic Bot agent"
 requires-python = ">=3.14"
 dependencies = [
-    "basic-bot[local] @ git+https://github.com/CablepunkPress/basic-bot.git@shims",
-    "basic-ui @ git+https://github.com/CablepunkPress/basic-ui.git@shims",
+    "basic-bot[local] @ git+https://github.com/CablepunkPress/basic-bot.git@main",
+    "basic-ui @ git+https://github.com/CablepunkPress/basic-ui.git@main",
 ]
 
 [tool.setuptools]
