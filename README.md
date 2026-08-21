@@ -24,9 +24,9 @@ is running at `http://localhost:11555`.
 ```bash
 git clone https://github.com/CablepunkPress/build-a-bot.git alice
 cd alice
+python build.py
 python add_tools.py github
 # edit tools/github/_config.py with your values
-python build.py
 python add_secrets.py
 python run.py
 ```
@@ -93,13 +93,12 @@ Changes take effect the next time you run `python run.py`.
 ```bash
 python add_tools.py --list
 python add_tools.py <group>
-python build.py
 python add_secrets.py
 ```
 
 Each tool group has a `_config.py` for your settings and a `tool.json`
-declaring its dependencies and secrets. `build.py` installs dependencies
-and `add_secrets.py` prompts for any new API keys.
+declaring its dependencies and secrets. `add_tools.py` installs
+dependencies and `add_secrets.py` prompts for any new API keys.
 
 To update a tool group without losing your configuration:
 
@@ -127,7 +126,7 @@ mv ~/.new-name/old-name.db ~/.new-name/new-name.db
 |------|---------|
 | `dashboard.json` | Agent identity: id, display name, description |
 | `persona.md` | Agent personality: how the model behaves |
-| `config.py` | Agent settings: Flask port |
+| `config.json` | Agent settings: Flask port |
 | `build.py` | Setup: venv, dependencies, inference infrastructure |
 | `run.py` | Launch: starts embedding server and chat UI |
 | `add_tools.py` | Install or update plugin tool groups |
