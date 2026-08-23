@@ -3,10 +3,14 @@
 Drop tool groups here. A tool group is a directory of Python files:
 
     tools/
-    └── github/
-        ├── _auth.py            ← shared code, not a tool
-        ├── create_branch.py    ← a tool
-        └── read_file.py        ← a tool
+    ├── github/
+    │   ├── _auth.py            ← shared code, not a tool
+    │   ├── create_branch.py    ← a tool
+    │   └── read_file.py        ← a tool
+    └── example/
+        ├── _config.py
+        ├── _auth.py
+        └── example_tool.py
 
 Each tool file defines a TOOL dict (the schema) and a handler function.
 Files starting with _ are shared modules — tool files in the same group
