@@ -2,6 +2,10 @@
 
 Name and customize your own Basic Bot Engine agent.
 
+## Who This Is For
+
+Developers who want to build AI agents that run locally on their own machine. Configure your agent via the command line, then interact with it through a web interface in your browser. You have full control over behavior, tools, and data.
+
 ## The Ecosystem
 
 | Repo | What it is |
@@ -99,29 +103,21 @@ Changes take effect the next time you run `python run.py`.
 
 ### Adding Tools
 
-Tools come from the [extend-a-bot](https://github.com/CablepunkPress/extend-a-bot) repository. To add a tool group to your agent:
-
-1. Run `python add_tools.py <toolgroup>` from the project root
-   - Example: `python add_tools.py github`
-   - This fetches tools from extend-a-bot and creates `tools/<toolgroup>/`
-
-2. Configure credentials and settings
-   - Edit `tools/<toolgroup>/_config.py` with your configuration
-   - Use `python add_secrets.py` to store sensitive credentials in your keyring
-
-3. Restart the agent
-   - Tools are auto-discovered at startup
-   - Run `python run.py` to start the agent with new tools loaded
-
-### Updating Tools
-
-To pull the latest versions of tools you've already installed:
-
 ```bash
-python add_tools.py <toolgroup> --update
+python add_tools.py --list
+python add_tools.py <group>
+python add_secrets.py
 ```
 
-This fetches the latest from extend-a-bot while preserving your `_config.py` settings.
+Each tool group has a `_config.py` for your settings and a `tool.json`
+declaring its dependencies and secrets. `add_tools.py` installs
+dependencies and `add_secrets.py` prompts for any new API keys.
+
+To update a tool group without losing your configuration:
+
+```bash
+python add_tools.py <group> --update
+```
 
 ### Renaming Your Agent
 
