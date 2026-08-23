@@ -1,4 +1,4 @@
-# build-a-bot
+# Build-A-Bot
 
 Name and customize your own Basic Bot Engine agent.
 
@@ -102,7 +102,7 @@ Changes take effect the next time you run `python run.py`.
 Tools come from the [extend-a-bot](https://github.com/CablepunkPress/extend-a-bot) repository. To add a tool group to your agent:
 
 1. Run `python add_tools.py <toolgroup>` from the project root
-   - Example: `python add_tools.py github` 
+   - Example: `python add_tools.py github`
    - This fetches tools from extend-a-bot and creates `tools/<toolgroup>/`
 
 2. Configure credentials and settings
@@ -113,7 +113,7 @@ Tools come from the [extend-a-bot](https://github.com/CablepunkPress/extend-a-bo
    - Tools are auto-discovered at startup
    - Run `python run.py` to start the agent with new tools loaded
 
-#### Updating Tools
+### Updating Tools
 
 To pull the latest versions of tools you've already installed:
 
