@@ -1,6 +1,6 @@
 # Build-A-Bot
 
-Name and customize your own Basic Bot Engine agent.
+Name and customize your own Basic Bot agent.
 
 ## Who This Is For
 
@@ -10,8 +10,8 @@ Developers who want to build AI agents that run locally on their own machine. Co
 
 | Repo | What it is |
 |------|------------|
-| [basic-bot](https://github.com/CablepunkPress/basic-bot) | The engine. Chat loop, memory, tool system. |
-| [basic-ui](https://github.com/CablepunkPress/basic-ui) | Reference Flask chat interface. |
+| [basic-bot](https://github.com/CablepunkPress/basic-bot) | The engine. Chat loop, memory, tool system, provider abstraction. |
+| [basic-ui](https://github.com/CablepunkPress/basic-ui) | Reference Flask chat interface and local launch orchestration. |
 | [build-a-bot](https://github.com/CablepunkPress/build-a-bot) | Template for creating your own local agent. |
 | [extend-a-bot](https://github.com/CablepunkPress/extend-a-bot) | Drop-in plugin tool groups. |
 
