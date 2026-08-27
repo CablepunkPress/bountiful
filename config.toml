@@ -18,7 +18,6 @@ inference_provider = "local"
 #
 # Local models (served by llama-server on your GPU):
 #   "qwen3-8b-q4_k_m"   — 8B pure transformer, ~5GB, fits most GPUs
-#   "qwen3-8b-q8_0"     — 8B pure transformer, ~8.5GB, higher quality
 #
 # Claude models (requires inference_provider = "claude"):
 #   "claude-haiku-4-5-20251001"   — fast and affordable
