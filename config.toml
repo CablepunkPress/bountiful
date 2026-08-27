@@ -11,23 +11,21 @@ flask_port = 11555
 # --- Inference ---
 
 # Provider: "local" (llama.cpp on your machine) or "claude" (Anthropic API)
-# Local requires a GPU and a downloaded model. Claude requires an API key.
-inference_provider = "claude"
+# Claude requires an API key via add_secrets.py.
+inference_provider = "local"
 
-# Model to load at startup
+# Default chat model
 #
 # Local models (served by llama-server on your GPU):
-#   "qwen3-8b"           — 8B dense, fits most GPUs, good general use
-#   "qwen3.6-35b-a3b"    — 35B MoE, needs 12GB+ VRAM and 32GB+ RAM
+#   "qwen3-8b-q4_k_m"   — 8B pure transformer, ~5GB, fits most GPUs
+#   "qwen3-8b-q8_0"     — 8B pure transformer, ~8.5GB, higher quality
 #
-# Claude models (via Anthropic API):
+# Claude models (requires inference_provider = "claude"):
 #   "claude-haiku-4-5-20251001"   — fast and affordable
 #   "claude-sonnet-4-6"           — balanced
 #   "claude-opus-4-6"             — most capable
 #
-# Must match the provider above. Local models need the GGUF downloaded
-# to ~/.bountiful/models/ first.
-default_model = "claude-haiku-4-5-20251001"
+default_model = "qwen3-8b-q4_k_m"
 
 # Maximum tokens the model can generate per response
 max_tokens = 4096
