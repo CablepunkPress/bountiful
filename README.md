@@ -1,4 +1,4 @@
-# Build-A-Bot
+# Bountiful
 
 Name and customize your own Basic Bot agent.
 
