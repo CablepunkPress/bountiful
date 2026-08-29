@@ -1,23 +1,12 @@
 # Bountiful
 
-Name and customize your own Basic Bot agent.
+Create and customize your own Bountiful Agent.
 
 ## Who This Is For
 
 Developers who want to build AI agents that run locally on their own machine. Configure your agent via the command line, then interact with it through a web interface in your browser. You have full control over behavior, tools, and data.
 
-## The Ecosystem
-
-| Repo | What it is |
-|------|------------|
-| [basic-bot](https://github.com/CablepunkPress/basic-bot) | The engine. Chat loop, memory, tool system, provider abstraction. |
-| [basic-ui](https://github.com/CablepunkPress/basic-ui) | Reference Flask chat interface and local launch orchestration. |
-| [build-a-bot](https://github.com/CablepunkPress/build-a-bot) | Template for creating your own local agent. |
-| [extend-a-bot](https://github.com/CablepunkPress/extend-a-bot) | Drop-in plugin tool groups. |
-
-## Installation
-
-### Quick Start
+## Quick Start
 
 Name your agent what you wish. The example here is for an agent named "Alice".
 
@@ -32,7 +21,7 @@ python run.py
 environment, and builds the shared inference infrastructure. Your agent
 is running at `http://localhost:11555`.
 
-### Quick Start with Plugin Tools
+## Quick Start with Plugin Tools
 
 ```bash
 git clone https://github.com/CablepunkPress/build-a-bot.git alice
@@ -53,10 +42,9 @@ Every agent ships with a conversation memory system and two built-in tools:
 - **search_archive** — semantic search over past conversations
 - **recall_message** — look up specific messages by number or date
 
-Conversations are stored locally in SQLite at `~/.{agent-id}/{agent-id}.db`.
-
-Shared inference infrastructure (embedding model and llama.cpp) lives at
-`~/.bountiful/` and is built once, shared by all Basic Bot agents on the machine.
+Conversations are stored locally in SQLite at `~/.{agent-id}/{agent-id}.db`. Shared inference infrastructure
+(embedding model and llama.cpp) lives at `~/.bountiful/` and is
+built once, shared by all agents on the machine.
 
 ## Customization
 
@@ -155,6 +143,10 @@ mv ~/.new-name/old-name.db ~/.new-name/new-name.db
 | `pyproject.toml` | Python dependencies: engine and UI versions |
 | `tools/` | Plugin tool groups (optional) |
 
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical map
+of the Bountiful ecosystem.
 
 ## License
 
