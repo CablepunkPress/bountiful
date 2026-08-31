@@ -120,7 +120,7 @@ def build_infra() -> None:
     print("\n[2/2] Shared inference infrastructure")
 
     result = subprocess.run(
-        [str(venv_python()), "-m", "basic_bot.infrastructure"],
+        [str(venv_python()), "-m", "basic_bot"],
     )
     if result.returncode != 0:
         fail("infrastructure setup failed — see output above")
