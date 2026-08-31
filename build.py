@@ -1,7 +1,8 @@
 """One-time setup for this agent.
 
 Creates the venv and installs dependencies, then delegates shared
-infrastructure setup (llama.cpp, embedding model) to the engine.
+infrastructure setup (llama.cpp, embedding model) 
+to the engine in 'basic-bot' repo.
 
 Idempotent — re-running after a failure picks up where it left off.
 Run with the system Python:
