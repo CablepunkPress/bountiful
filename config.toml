@@ -1,19 +1,2 @@
 # Agent Configuration
-# All values below can be changed. Restart the agent for changes to take effect.
-
-
-# --- Server ---
-
-# Port the chat UI runs on
-flask_port = 11555
-
-
-# --- Inference ---
-
-# Provider: "local" (llama.cpp on your machine) or "claude" (Anthropic API)
-# Claude requires an API key via add_secrets.py.
 inference_provider = "claude"
-
-
-# Maximum tokens the model can generate per response
-max_tokens = 4096
