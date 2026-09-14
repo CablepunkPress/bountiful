@@ -1,15 +1,16 @@
 """One-time setup for this agent.
 
 Creates the venv and installs dependencies, then delegates shared
-infrastructure setup (llama.cpp, embedding model) 
+infrastructure setup (llama.cpp, embedding model, summary model, chat model) 
 to the engine in 'basic-bot' repo.
 
 Idempotent — re-running after a failure picks up where it left off.
+
 Run with the system Python:
 
     python build.py
 
-Then store your API keys:
+Afterwards, for Claude API chat inference access, or if using a tool that requires an API key:
 
     python add_secrets.py
 """
@@ -136,9 +137,10 @@ def main() -> None:
     create_venv()
     build_infra()
     print(
-        "\nSetup complete. Store your API keys, then start the agent:\n"
-        "\n    python add_secrets.py"
+        "\nSetup complete. Start the agent:\n"
         "\n    python run.py\n"
+        "\nTo add Claude API access:\n"
+        "\n    python add_secrets.py\n"
     )
 
 
