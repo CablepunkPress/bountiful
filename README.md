@@ -54,7 +54,7 @@ Conversations are stored and indexed locally in SQLite at `~/.{agent-id}/{agent-
 
 As this SQLite database is only stored on your local machine, you are highly advised to back it up regularly.
 
-Shared infrastructure (local LLM models and llama.cpp) lives at `~/.bountiful/` and is built once and shared by all agents on the machine. You can clone and customize multiple agents, but only one can run at a time.
+Shared infrastructure (local LLM models and llama.cpp) lives at `~/.bountiful/` and is built once and shared by all agents on the machine. You can clone and customize multiple agents each with their own memory database, but only one agent can run at a time.
 
 
 ## Plugin Tools
