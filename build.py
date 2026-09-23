@@ -48,6 +48,12 @@ def first_run_setup() -> str:
         return dashboard["id"]
 
     dir_name = ROOT.name.lower()
+
+    # "bountiful" is reserved for shared infrastructure (~/.bountiful/)
+    if dir_name == "bountiful":
+        print("'bountiful' is reserved for shared infrastructure.")
+        dir_name = input("Choose an agent id (lowercase, no spaces): ").strip().lower()
+
     display_name = dir_name.replace("-", " ").replace("_", " ").title()
 
     # Check for collision with an existing agent
@@ -139,8 +145,6 @@ def main() -> None:
     print(
         "\nSetup complete. Start the agent:\n"
         "\n    python run.py\n"
-        "\nTo add Claude API access:\n"
-        "\n    python add_secrets.py\n"
     )
 
 
