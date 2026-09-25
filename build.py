@@ -5,14 +5,12 @@ infrastructure setup (llama.cpp, embedding model, summary model, chat model)
 to the engine in 'basic-bot' repo.
 
 Idempotent — re-running after a failure picks up where it left off.
+Re-running after a system Python upgrade rebuilds the venv for the
+new interpreter. The agent's memory and identity are never touched.
 
 Run with the system Python:
 
     python build.py
-
-Afterwards, for Claude API chat inference access, or if using a tool that requires an API key:
-
-    python add_secrets.py
 """
 
 import json
@@ -34,6 +32,27 @@ def venv_python() -> Path:
     if os.name == "nt":
         return VENV / "Scripts" / "python.exe"
     return VENV / "bin" / "python"
+
+
+def venv_python_version() -> tuple[int, int] | None:
+    """Read the major.minor Python version the venv was built with.
+
+    Every venv records its interpreter version in pyvenv.cfg. Returns
+    None if the file is missing or unreadable, which is treated the
+    same as a mismatch.
+    """
+    cfg = VENV / "pyvenv.cfg"
+    if not cfg.exists():
+        return None
+    for line in cfg.read_text().splitlines():
+        key, _, value = line.partition("=")
+        if key.strip() in ("version", "version_info"):
+            parts = value.strip().split(".")
+            try:
+                return int(parts[0]), int(parts[1])
+            except (IndexError, ValueError):
+                return None
+    return None
 
 
 def first_run_setup() -> str:
@@ -67,8 +86,8 @@ def first_run_setup() -> str:
         fail(
             f"~/.{dir_name}/ already exists — another agent is using this name.\n"
             f"Rename this repo's directory and run build.py again:\n\n"
-            f"    mv {ROOT} /{parent}/{suggestion}\n"
-            f"    cd /{parent}/{suggestion}\n"
+            f"    mv {ROOT} {parent}/{suggestion}\n"
+            f"    cd {parent}/{suggestion}\n"
             f"    python build.py"
         )
 
@@ -108,6 +127,21 @@ def first_run_setup() -> str:
 
 def create_venv() -> None:
     print("\n[1/2] Creating virtual environment and installing dependencies")
+
+    # A venv borrows the system interpreter. If the system Python has
+    # moved to a new minor version since the venv was built, the venv
+    # is stale and must be rebuilt. Patch releases (3.14.6 → 3.14.7)
+    # are compatible and do not trigger a rebuild.
+    if VENV.exists():
+        built_with = venv_python_version()
+        running = (sys.version_info.major, sys.version_info.minor)
+        if built_with != running:
+            was = f"{built_with[0]}.{built_with[1]}" if built_with else "an unknown version"
+            print(
+                f"    venv was built with Python {was}, "
+                f"now running {running[0]}.{running[1]} — rebuilding"
+            )
+            shutil.rmtree(VENV)
 
     if not venv_python().exists():
         subprocess.run([sys.executable, "-m", "venv", str(VENV)], check=True)
