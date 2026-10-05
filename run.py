@@ -1,6 +1,6 @@
 """Launch this agent locally.
 
-    python run.py
+    python3 run.py
 """
 
 import os
@@ -43,7 +43,7 @@ if Path(sys.prefix).resolve() != VENV.resolve():
         sys.exit(
             f"This agent's environment was built with Python {was}, "
             f"but your system now runs Python {running[0]}.{running[1]}.\n"
-            "Run 'python build.py' to rebuild it, then try again. "
+            "Run 'python3 build.py' to rebuild it, then try again. "
             "Your agent's memory and settings are not affected."
         )
     os.execv(str(_venv_python()), [str(_venv_python()), *sys.argv])
