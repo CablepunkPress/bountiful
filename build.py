@@ -198,16 +198,19 @@ def install_tool_dependencies() -> None:
     if not deps:
         return
 
-    print(f"    tool dependencies: {', '.join(sorted(deps))}")
+    print(f"    installing tool dependencies: {', '.join(sorted(deps))}")
     result = subprocess.run(
-        [str(venv_python()), "-m", "pip", "install", *sorted(deps)],
+        [str(venv_python()), "-m", "pip", "install", "--quiet", *sorted(deps)],
     )
     if result.returncode != 0:
-        fail("tool dependency install failed — see output above")
+        fail(
+            "installing tool dependencies failed — see output above.\n\n"
+            "Check your connection, then run 'python3 build.py' again."
+        )
 
 
 def create_venv() -> None:
-    print("\n[1/2] Creating virtual environment and installing dependencies")
+    print("\n[1/2] Python environment and Bountiful's packages")
 
     # A venv borrows the system interpreter. If the system Python has
     # moved to a new minor version since the venv was built, the venv
@@ -218,36 +221,41 @@ def create_venv() -> None:
         running = (sys.version_info.major, sys.version_info.minor)
         if built != running:
             print(
-                f"    venv was built with Python {describe(built)}, "
-                f"now running {describe(running)} — rebuilding"
+                f"    the environment was built with Python {describe(built)}, "
+                f"now running {describe(running)} — rebuilding it"
             )
             shutil.rmtree(VENV)
 
     if not venv_python().exists():
         subprocess.run([sys.executable, "-m", "venv", str(VENV)], check=True)
-        print(f"    created {VENV}")
+        print(f"    created a virtual environment in {VENV}")
     else:
-        print(f"    already done — {VENV} exists")
+        print(f"    using the existing virtual environment in {VENV}")
 
+    print("    installing basic-bot and basic-ui from GitHub")
     result = subprocess.run(
-        [str(venv_python()), "-m", "pip", "install", "."],
+        [str(venv_python()), "-m", "pip", "install", "--quiet", "."],
         cwd=ROOT,
     )
     if result.returncode != 0:
-        fail("pip install failed — see output above")
+        fail(
+            "installing packages failed — see output above.\n\n"
+            "Check your connection, then run 'python3 build.py' again."
+        )
 
     install_tool_dependencies()
-    print("    dependencies installed")
+    print("    packages installed")
 
 
 def build_infra() -> None:
-    print("\n[2/2] Shared inference infrastructure")
+    print("\n[2/2] llama.cpp and AI models, shared by every agent in ~/.bountiful/")
 
     result = subprocess.run(
         [str(venv_python()), "-m", "basic_bot"],
     )
     if result.returncode != 0:
-        fail("infrastructure setup failed — see output above")
+        # basic_bot has already explained what failed and what to do.
+        sys.exit(result.returncode)
 
 
 def main() -> None:
@@ -265,4 +273,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        # Any running step has already said how to resume.
+        sys.exit(130)
