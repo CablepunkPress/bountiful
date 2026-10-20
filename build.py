@@ -11,6 +11,10 @@ new interpreter. The agent's memory and identity are never touched.
 Run with the system Python:
 
     python3 build.py
+
+Options are passed to the engine's build: 'python3 build.py --models'
+asks again about every optional chat model, and
+'python3 build.py --help' lists them all.
 """
 
 from __future__ import annotations
@@ -250,8 +254,10 @@ def create_venv() -> None:
 def build_infra() -> None:
     print("\n[2/2] llama.cpp and AI models, shared by every agent in ~/.bountiful/")
 
+    # Options such as --models belong to the engine, so they're passed
+    # along unread. New options then never need a change here.
     result = subprocess.run(
-        [str(venv_python()), "-m", "basic_bot"],
+        [str(venv_python()), "-m", "basic_bot", *sys.argv[1:]],
     )
     if result.returncode != 0:
         # basic_bot has already explained what failed and what to do.
