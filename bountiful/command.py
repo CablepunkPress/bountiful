@@ -4,9 +4,6 @@ USAGE below lists the commands. There is no default agent. Every
 agent is started the same way, by typing its id, so starting one is
 always a deliberate choice.
 
-There is no default agent. Every agent is started the same way, by
-typing its id, so starting one is always a deliberate choice.
-
 This is the application's policy: new agents go in the home folder by
 default, an agent's data goes in the data folder inside it, and an id
 starts the web page. The mechanisms it uses, creating agents, the
