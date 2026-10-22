@@ -18,5 +18,8 @@ bountiful = "bountiful.command:main"
 [tool.pyright]
 pythonVersion = "3.14"
 
+[tool.setuptools.dynamic]
+version = {attr = "bountiful.__version__"}
+
 [tool.setuptools.packages.find]
 include = ["bountiful*"]
