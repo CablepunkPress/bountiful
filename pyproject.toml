@@ -3,13 +3,13 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "my-agent"
+name = "bountiful"
 version = "0.7.0.dev0"
-description = "A Basic Bot agent"
+description = "Bountiful: local AI agents on your own machine"
 requires-python = ">=3.14"
 dependencies = [
-    "basic-bot @ git+https://github.com/CablepunkPress/basic-bot.git@v0.10.0",
-    "basic-ui @ git+https://github.com/CablepunkPress/basic-ui.git@v0.5.0",
+    "basic-bot @ git+https://github.com/CablepunkPress/basic-bot.git@main",
+    "basic-ui @ git+https://github.com/CablepunkPress/basic-ui.git@main",
 ]
 
 [tool.pyright]
