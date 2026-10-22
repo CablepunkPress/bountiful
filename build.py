@@ -316,11 +316,11 @@ def main() -> None:
     print("Bountiful — setup")
     disable_push()
     create_venv()
-    build_infra(sys.argv[1:])
 
-    print("\n  the bountiful command")
     link_command()
     offer_path()
+
+    build_infra(sys.argv[1:])
 
     print("\nSetup complete.")
     ids = agent_ids()
