@@ -193,7 +193,13 @@ def version() -> None:
 
 
 def update() -> None:
-    """Pull the latest release and rebuild."""
+    """Install the newest release, if there is one.
+
+    Releases are tags, and the stable branch only ever moves to the
+    newest one, so updating means following stable. A clone on any
+    other branch, such as main for development, is left to git pull
+    and python3 build.py.
+    """
     clone = Path(sys.prefix).parent
 
     if not (clone / ".git").is_dir():
@@ -202,104 +208,65 @@ def update() -> None:
             "Download a fresh copy from the README instead."
         )
 
+    import shutil
     import subprocess
 
-    # Refuse if the clone has local changes
-    status = subprocess.run(
-        ["git", "-C", str(clone), "status", "--porcelain"],
-        capture_output=True, text=True,
-    )
-    if status.returncode != 0:
-        _fail("Couldn't check this clone's status. Is git installed?")
-    if status.stdout.strip():
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git", "-C", str(clone), *args], capture_output=True, text=True,
+        )
+
+    branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    if branch != "stable":
+        print(
+            f"This clone is on '{branch}', not stable, so 'bountiful update' "
+            f"leaves it alone.\nIt follows releases only. To get the newest "
+            f"code, run 'git pull', then 'python3 build.py'."
+        )
+        return
+
+    if git("status", "--porcelain").stdout.strip():
         _fail(
-            "This clone has local changes. Commit or discard them first,\n"
+            "This clone has local changes. Discard them first,\n"
             "then run 'bountiful update' again."
         )
 
-    # Fetch and compare
-    fetch = subprocess.run(
-        ["git", "-C", str(clone), "fetch", "--tags", "origin"],
-        capture_output=True, text=True,
-    )
-    if fetch.returncode != 0:
+    if git("fetch", "--tags", "origin").returncode != 0:
         _fail(
             "Couldn't reach GitHub. Check your connection,\n"
             "then run 'bountiful update' again."
         )
 
-    # What branch are we on?
-    branch = subprocess.run(
-        ["git", "-C", str(clone), "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True, text=True,
-    )
-    if branch.returncode != 0 or not branch.stdout.strip():
-        _fail("Couldn't determine the current branch.")
-    branch_name = branch.stdout.strip()
-
-    # Compare local HEAD with the remote
-    local = subprocess.run(
-        ["git", "-C", str(clone), "rev-parse", "HEAD"],
-        capture_output=True, text=True,
-    ).stdout.strip()
-    remote = subprocess.run(
-        ["git", "-C", str(clone), "rev-parse", f"origin/{branch_name}"],
-        capture_output=True, text=True,
-    ).stdout.strip()
-
-    if local == remote:
+    if git("rev-parse", "HEAD").stdout == git("rev-parse", "origin/stable").stdout:
         print(f"Already up to date (v{bountiful.__version__}).")
         return
 
-    # Show what the new version brings. On stable, the latest tag's
-    # message is the release note; on main, a short log works.
-    log = subprocess.run(
-        ["git", "-C", str(clone), "log", "--oneline",
-         f"HEAD..origin/{branch_name}"],
-        capture_output=True, text=True,
-    )
-    if log.stdout.strip():
-        print("New commits:\n")
-        print(log.stdout.rstrip())
-        print()
+    # stable only moves to release tags, so it should name one; its
+    # message is the release notes
+    tag = git("describe", "--exact-match", "origin/stable").stdout.strip()
+    if tag:
+        print(f"Bountiful {tag} is available (you have v{bountiful.__version__}).")
+        notes = git("tag", "-l", "--format=%(contents)", tag).stdout.strip()
+        if notes:
+            print(f"\n{notes}")
+    else:
+        print(f"A new release is available (you have v{bountiful.__version__}).")
+    print()
 
-    # On stable, show the tag message if the remote points at one
-    tag_name = subprocess.run(
-        ["git", "-C", str(clone), "describe", "--exact-match",
-         f"origin/{branch_name}"],
-        capture_output=True, text=True,
-    )
-    if tag_name.returncode == 0:
-        tag = tag_name.stdout.strip()
-        tag_msg = subprocess.run(
-            ["git", "-C", str(clone), "tag", "-l", "--format=%(contents)", tag],
-            capture_output=True, text=True,
-        )
-        if tag_msg.stdout.strip():
-            print(f"Release notes ({tag}):\n")
-            print(tag_msg.stdout.rstrip())
-            print()
+    if sys.stdin.isatty() and not _ask("Update?", True):
+        print("Nothing changed.")
+        return
 
-    if sys.stdin.isatty():
-        if not _ask("Update?", True):
-            print("Nothing changed.")
-            return
-
-    # Pull
-    pull = subprocess.run(
-        ["git", "-C", str(clone), "pull", "--ff-only"],
-        capture_output=True, text=True,
-    )
+    pull = git("pull", "--ff-only")
     if pull.returncode != 0:
         _fail(
-            "The pull failed. This can happen if the clone was modified.\n"
-            "The output:\n\n" + (pull.stderr or pull.stdout)
+            "The update couldn't be applied. The output:\n\n"
+            + (pull.stderr or pull.stdout)
         )
 
     # Rebuild exactly as the user would: python3 build.py, with whatever
     # python3 the terminal finds. build.py runs on the system Python
     # because it may rebuild the venv, and checks the version itself.
-    import shutil
     system_python = shutil.which("python3")
     if system_python is None:
         _fail("Updated, but python3 isn't on the PATH. Run 'python3 build.py' to finish.")
