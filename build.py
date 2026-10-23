@@ -44,6 +44,7 @@ import json
 import os
 import shutil
 import subprocess
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -327,10 +328,32 @@ def create_venv() -> None:
         print(f"    using the virtual environment in {short(VENV)}")
 
     print("    installing Bountiful's packages from GitHub")
+    pip_install(".")
+    # pip skips a package already installed at the same version, even
+    # when its pin, such as basic-bot's @main, now names newer code. So
+    # Bountiful's own packages are reinstalled every time, without
+    # touching their dependencies, and a pushed change always arrives.
+    pip_install("--force-reinstall", "--no-deps", ".", *own_packages())
+    print("    packages installed")
+
+
+def own_packages() -> list[str]:
+    """Bountiful's own packages, as pinned in pyproject.toml.
+
+    They're the dependencies given as direct references, such as
+    "basic-bot @ git+https://...@main"; everything else comes from PyPI
+    and is left to pip.
+    """
+    with open(ROOT / "pyproject.toml", "rb") as f:
+        dependencies = tomllib.load(f)["project"].get("dependencies", [])
+    return [d for d in dependencies if " @ " in d]
+
+
+def pip_install(*args: str) -> None:
     result = subprocess.run(
         [
             str(venv_python()), "-m", "pip", "install", "--quiet",
-            "--disable-pip-version-check", ".",
+            "--disable-pip-version-check", *args,
         ],
         cwd=ROOT,
     )
@@ -339,7 +362,6 @@ def create_venv() -> None:
             "installing packages failed — see output above.\n\n"
             "Check your connection, then run 'python3 build.py' again."
         )
-    print("    packages installed")
 
 
 def build_engine() -> None:
