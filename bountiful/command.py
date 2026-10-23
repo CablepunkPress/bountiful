@@ -123,10 +123,16 @@ def new() -> None:
     folder = Path.home() / agent_id
     print(f"  id: {agent_id}")
     if not _ask(f"Create it at {_short(folder)}?", True):
-        answer = input("Folder to create it in (it must not exist yet): ").strip()
+        answer = input(
+            f"Which folder should {name}'s folder go in? (such as ~/myAgents) "
+        ).strip()
         if not answer:
             sys.exit("Nothing created.")
-        folder = Path(answer).expanduser()
+        folder = Path(answer).expanduser().resolve() / agent_id
+        if not _ask(f"Create it at {_short(folder)}?", True):
+            sys.exit("Nothing created.")
+        # The user named this folder, so creating it is what they asked for
+        folder.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         folder = create_agent(folder, agent_id, name)
