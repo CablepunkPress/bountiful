@@ -10,9 +10,11 @@ starts the web page. The mechanisms it uses, creating agents, the
 list of agents, and sessions, belong to basic-bot.
 """
 
+import os
 import sys
 from pathlib import Path
 
+import bountiful
 from basic_bot import registry
 from basic_bot.agent import (
     DATA_DIR,
@@ -26,7 +28,7 @@ from basic_bot.agent import (
 
 # The first word after 'bountiful' is either one of these or an
 # agent's id, so no agent may be named after one of them.
-COMMANDS = ("chat", "new", "import", "list", "forget", "models", "help")
+COMMANDS = ("chat", "new", "import", "list", "forget", "models", "update", "version", "help")
 
 USAGE = """\
 Usage:
@@ -36,7 +38,9 @@ Usage:
     bountiful import FOLDER   record an agent folder, e.g. after moving machines
     bountiful list            the agents this machine knows
     bountiful forget ID       remove an agent from the list; its folder is untouched
-    bountiful models          add or remove optional chat models"""
+    bountiful models          add or remove optional chat models
+    bountiful update          check for a new version and install it
+    bountiful version         show the installed version"""
 
 
 def _fail(message: str):
@@ -181,6 +185,137 @@ def models() -> None:
     """Offer the optional chat models, through the engine."""
     from basic_bot.setup.models import main as models_main
     models_main()
+
+
+def version() -> None:
+    print(f"bountiful {bountiful.__version__}")
+
+
+def update() -> None:
+    """Pull the latest release and rebuild."""
+    clone = Path(__file__).resolve().parent.parent
+
+    if not (clone / ".git").is_dir():
+        _fail(
+            "This isn't a git clone, so it can't update itself.\n"
+            "Download a fresh copy from the README instead."
+        )
+
+    import subprocess
+
+    # Refuse if the clone has local changes
+    status = subprocess.run(
+        ["git", "-C", str(clone), "status", "--porcelain"],
+        capture_output=True, text=True,
+    )
+    if status.returncode != 0:
+        _fail("Couldn't check this clone's status. Is git installed?")
+    if status.stdout.strip():
+        _fail(
+            "This clone has local changes. Commit or discard them first,\n"
+            "then run 'bountiful update' again."
+        )
+
+    # Fetch and compare
+    fetch = subprocess.run(
+        ["git", "-C", str(clone), "fetch", "--tags", "origin"],
+        capture_output=True, text=True,
+    )
+    if fetch.returncode != 0:
+        _fail(
+            "Couldn't reach GitHub. Check your connection,\n"
+            "then run 'bountiful update' again."
+        )
+
+    # What branch are we on?
+    branch = subprocess.run(
+        ["git", "-C", str(clone), "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True, text=True,
+    )
+    if branch.returncode != 0 or not branch.stdout.strip():
+        _fail("Couldn't determine the current branch.")
+    branch_name = branch.stdout.strip()
+
+    # Compare local HEAD with the remote
+    local = subprocess.run(
+        ["git", "-C", str(clone), "rev-parse", "HEAD"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    remote = subprocess.run(
+        ["git", "-C", str(clone), "rev-parse", f"origin/{branch_name}"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+
+    if local == remote:
+        import bountiful
+        print(f"Already up to date (v{bountiful.__version__}).")
+        return
+
+    # Show what the new version brings. On stable, the latest tag's
+    # message is the release note; on main, a short log works.
+    log = subprocess.run(
+        ["git", "-C", str(clone), "log", "--oneline",
+         f"HEAD..origin/{branch_name}"],
+        capture_output=True, text=True,
+    )
+    if log.stdout.strip():
+        print("New commits:\n")
+        print(log.stdout.rstrip())
+        print()
+
+    # On stable, show the tag message if the remote points at one
+    tag_name = subprocess.run(
+        ["git", "-C", str(clone), "describe", "--exact-match",
+         f"origin/{branch_name}"],
+        capture_output=True, text=True,
+    )
+    if tag_name.returncode == 0:
+        tag = tag_name.stdout.strip()
+        tag_msg = subprocess.run(
+            ["git", "-C", str(clone), "tag", "-l", "--format=%(contents)", tag],
+            capture_output=True, text=True,
+        )
+        if tag_msg.stdout.strip():
+            print(f"Release notes ({tag}):\n")
+            print(tag_msg.stdout.rstrip())
+            print()
+
+    if sys.stdin.isatty():
+        if not _ask("Update?", True):
+            print("Nothing changed.")
+            return
+
+    # Pull
+    pull = subprocess.run(
+        ["git", "-C", str(clone), "pull", "--ff-only"],
+        capture_output=True, text=True,
+    )
+    if pull.returncode != 0:
+        _fail(
+            "The pull failed. This can happen if the clone was modified.\n"
+            "The output:\n\n" + (pull.stderr or pull.stdout)
+        )
+
+    # Rebuild by exec-ing the system Python that built the venv.
+    # os.execv replaces this process, so build.py runs as if typed
+    # at the terminal, and bountiful update is done.
+    venv_cfg = clone / ".venv" / "pyvenv.cfg"
+    system_python = None
+    if venv_cfg.exists():
+        for line in venv_cfg.read_text().splitlines():
+            key, _, value = line.partition("=")
+            if key.strip() == "home":
+                candidate = Path(value.strip()) / "python3"
+                if candidate.exists():
+                    system_python = str(candidate)
+                break
+
+    if system_python is None:
+        system_python = sys.executable
+
+    build_script = str(clone / "build.py")
+    print(f"\nRebuilding...\n")
+    os.execv(system_python, [system_python, build_script])
 
 
 # --- Dispatch ---
