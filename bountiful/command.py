@@ -13,6 +13,7 @@ list of agents, and sessions, belong to basic-bot.
 import os
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 import bountiful
 from basic_bot import registry
@@ -43,7 +44,7 @@ Usage:
     bountiful version         show the installed version"""
 
 
-def _fail(message: str):
+def _fail(message: str) -> NoReturn:
     sys.exit(f"ERROR: {message}")
 
 
@@ -193,7 +194,7 @@ def version() -> None:
 
 def update() -> None:
     """Pull the latest release and rebuild."""
-    clone = Path(__file__).resolve().parent.parent
+    clone = Path(sys.prefix).parent
 
     if not (clone / ".git").is_dir():
         _fail(
@@ -247,7 +248,6 @@ def update() -> None:
     ).stdout.strip()
 
     if local == remote:
-        import bountiful
         print(f"Already up to date (v{bountiful.__version__}).")
         return
 
@@ -296,26 +296,16 @@ def update() -> None:
             "The output:\n\n" + (pull.stderr or pull.stdout)
         )
 
-    # Rebuild by exec-ing the system Python that built the venv.
-    # os.execv replaces this process, so build.py runs as if typed
-    # at the terminal, and bountiful update is done.
-    venv_cfg = clone / ".venv" / "pyvenv.cfg"
-    system_python = None
-    if venv_cfg.exists():
-        for line in venv_cfg.read_text().splitlines():
-            key, _, value = line.partition("=")
-            if key.strip() == "home":
-                candidate = Path(value.strip()) / "python3"
-                if candidate.exists():
-                    system_python = str(candidate)
-                break
-
+    # Rebuild exactly as the user would: python3 build.py, with whatever
+    # python3 the terminal finds. build.py runs on the system Python
+    # because it may rebuild the venv, and checks the version itself.
+    import shutil
+    system_python = shutil.which("python3")
     if system_python is None:
-        system_python = sys.executable
+        _fail("Updated, but python3 isn't on the PATH. Run 'python3 build.py' to finish.")
 
-    build_script = str(clone / "build.py")
-    print(f"\nRebuilding...\n")
-    os.execv(system_python, [system_python, build_script])
+    print("\nRebuilding...\n", flush=True)
+    os.execv(system_python, [system_python, str(clone / "build.py")])
 
 
 # --- Dispatch ---
