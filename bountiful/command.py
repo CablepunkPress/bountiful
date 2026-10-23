@@ -349,6 +349,10 @@ def main() -> None:
             forget(_one(rest, "bountiful forget ID"))
         elif command == "models":
             models()
+        elif command == "update":
+            update()
+        elif command == "version":
+            version()
         elif rest:
             sys.exit(
                 f"'{command}' isn't a command, and an agent's id takes "
