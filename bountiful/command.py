@@ -10,7 +10,6 @@ starts the web page. The mechanisms it uses, creating agents, the
 list of agents, and sessions, belong to basic-bot.
 """
 
-import subprocess
 import sys
 from pathlib import Path
 
@@ -37,7 +36,7 @@ Usage:
     bountiful import FOLDER   record an agent folder, e.g. after moving machines
     bountiful list            the agents this machine knows
     bountiful forget ID       remove an agent from the list; its folder is untouched
-    bountiful models          ask about optional models again"""
+    bountiful models          add or remove optional chat models"""
 
 
 def _fail(message: str):
@@ -173,9 +172,9 @@ def forget(agent_id: str) -> None:
 
 
 def models() -> None:
-    """Ask about optional models again, through the engine's build."""
-    result = subprocess.run([sys.executable, "-m", "basic_bot", "--models"])
-    sys.exit(result.returncode)
+    """Offer the optional chat models, through the engine."""
+    from basic_bot.setup.models import main as models_main
+    models_main()
 
 
 # --- Dispatch ---

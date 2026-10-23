@@ -1,25 +1,27 @@
-"""Build Bountiful on this machine.
+"""Install Bountiful on this machine.
 
-Creates the virtual environment and installs Bountiful's packages into
-it, then hands over to the engine, which builds llama.cpp and
-downloads the AI models into ~/.bountiful, shared by every agent.
+Installing Bountiful installs the bountiful command, the way installing
+the Google Cloud SDK installs gcloud. The build asks one question
+first, then does everything else on its own, so a long download can
+run while no one is watching. When it says "Setup complete",
+everything is ready:
 
-Installing Bountiful installs the bountiful command, the way
-installing the Google Cloud SDK installs gcloud. Agents are created
-and started with it: 'bountiful new', then 'bountiful jeden'. Each
-agent lives in its own folder outside this one, so nothing here is
-personal.
+    the virtual environment, with Bountiful's packages
+    llama.cpp, built for this machine, in ~/.bountiful
+    the AI models every agent needs, in ~/.bountiful
+    the bountiful command, in ~/.local/bin and on the PATH
 
-Idempotent: re-running after a failure picks up where it left off.
-Re-running after a system Python upgrade rebuilds the environment for
-the new interpreter. No agent's files are ever touched.
+Optional chat models are never part of the build. They come later
+with 'bountiful models', or not at all.
+
+The question is asked once, and the answer is recorded, so re-running
+after an interruption goes straight back to work and picks up where
+it left off. Re-running after a system Python upgrade rebuilds the
+environment for the new interpreter. No agent's files are ever touched.
 
 Run with the system Python:
 
     python3 build.py
-
-Options are passed to the engine's build: 'python3 build.py --models'
-asks again about every optional chat model.
 """
 
 from __future__ import annotations
@@ -54,56 +56,178 @@ LINK = USER_BIN / "bountiful"
 
 # Bountiful's shared folder, as in basic_bot/paths.py. This file runs
 # before the engine is installed, so it can't import it. install.json
-# remembers that the PATH question was asked; agents.json is the
-# engine's list of agents.
+# records the user's answer to the install question, and whether the
+# build added the PATH line; agents.json is the engine's list of agents.
 BOUNTIFUL_HOME = Path.home() / ".bountiful"
 INSTALL_RECORD = BOUNTIFUL_HOME / "install.json"
 AGENTS_REGISTRY = BOUNTIFUL_HOME / "agents.json"
+MODELS_DIR = BOUNTIFUL_HOME / "models"
 
-# The one line added to a shell's startup file, at the end of the PATH
-# so it never takes precedence over a command the user already has.
+# The line added to a shell's startup file. It puts ~/.local/bin at the
+# end of the PATH, so it never takes precedence over a command the
+# user or the system already has.
 PATH_LINE = 'export PATH="$PATH:$HOME/.local/bin"'
+# fish's own way to say the same. --path changes PATH directly rather
+# than fish_user_paths, which fish puts at the front; that change isn't
+# saved on its own, so the line belongs in config.fish.
+FISH_LINE = "fish_add_path --append --path $HOME/.local/bin"
+
+# What the essential models come to across the profiles, for the
+# opening statement. The build can't read the profiles yet, and on
+# Linux the profile isn't known until llama.cpp is built, so this is a
+# range; the exact sizes are shown before anything large downloads.
+# Keep it in step with the profiles: about 31.6 GB on vulkan_12gb and
+# 40.2 GB on metal_32gb (October 2026).
+MODELS_SIZE = "about 30 to 40 GB"
+
+# Set while the engine's build runs, which explains an interruption itself
+_in_engine = False
 
 
 def fail(message: str) -> None:
     sys.exit(f"\nERROR: {message}")
 
 
-def venv_python() -> Path:
-    if os.name == "nt":
-        return VENV / "Scripts" / "python.exe"
-    return VENV / "bin" / "python"
+def short(path: Path) -> str:
+    """A path with the home folder shown as ~."""
+    try:
+        return "~/" + str(path.relative_to(Path.home()))
+    except ValueError:
+        return str(path)
 
 
-def venv_command() -> Path:
-    """The bountiful command pip installs into the environment."""
-    return VENV / "bin" / "bountiful"
+def ask(question: str) -> bool:
+    """A yes-or-no question that defaults to yes."""
+    try:
+        answer = input(f"{question} [Y/n] ").strip().lower()
+    except EOFError:
+        return False
+    return answer in ("", "y", "yes")
 
 
-def venv_version() -> tuple[int, int] | None:
-    """The major.minor Python version the venv was built with.
+def read_record() -> dict:
+    try:
+        record = json.loads(INSTALL_RECORD.read_text())
+    except (OSError, ValueError):
+        return {}
+    return record if isinstance(record, dict) else {}
 
-    Every venv records its interpreter version in pyvenv.cfg. Returns
-    None if the file is missing or unreadable.
+
+def write_record(record: dict) -> None:
+    BOUNTIFUL_HOME.mkdir(parents=True, exist_ok=True)
+    INSTALL_RECORD.write_text(json.dumps(record, indent=2) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# The shell
+# ---------------------------------------------------------------------------
+
+def shell_setup() -> tuple[Path, str] | None:
+    """The user's shell startup file and the PATH line for it.
+
+    $SHELL names the login shell, the one a new terminal window opens,
+    even if this build was started from another. None for a shell
+    Bountiful doesn't know.
     """
-    cfg = VENV / "pyvenv.cfg"
-    if not cfg.exists():
-        return None
-    for line in cfg.read_text().splitlines():
-        key, _, value = line.partition("=")
-        if key.strip() in ("version", "version_info"):
-            try:
-                major, minor = value.strip().split(".")[:2]
-                return int(major), int(minor)
-            except ValueError:
-                return None
+    shell = Path(os.environ.get("SHELL", "")).name
+    home = Path.home()
+    if shell == "zsh":
+        return home / ".zshrc", PATH_LINE
+    if shell == "bash":
+        # On a Mac, Terminal opens login shells, which read .bash_profile
+        name = ".bash_profile" if sys.platform == "darwin" else ".bashrc"
+        return home / name, PATH_LINE
+    if shell == "fish":
+        return home / ".config" / "fish" / "config.fish", FISH_LINE
     return None
 
 
-def describe(version: tuple[int, int] | None) -> str:
-    if version is None:
-        return "an unknown version"
-    return f"{version[0]}.{version[1]}"
+def on_path(folder: Path) -> bool:
+    """True if this terminal's PATH already includes folder."""
+    return any(
+        Path(p).expanduser().resolve() == folder.resolve()
+        for p in os.environ.get("PATH", "").split(os.pathsep) if p
+    )
+
+
+def in_startup_file(setup: tuple[Path, str] | None) -> bool:
+    """True if the startup file already has the PATH line, so a new
+    terminal window will find the command even if this one can't."""
+    if setup is None:
+        return False
+    rc, line = setup
+    try:
+        return line in rc.read_text()
+    except OSError:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# The question
+# ---------------------------------------------------------------------------
+
+def statement(setup: tuple[Path, str] | None) -> str:
+    """What installing does, said before asking."""
+    bin_dir = short(USER_BIN)
+    if on_path(USER_BIN) or in_startup_file(setup):
+        command = f"Installing Bountiful puts the bountiful command in {bin_dir}."
+    elif setup is not None:
+        command = (
+            f"Installing Bountiful puts the bountiful command in {bin_dir}\n"
+            f"and adds {bin_dir} to your PATH in {short(setup[0])}."
+        )
+    else:
+        command = (
+            f"Installing Bountiful puts the bountiful command in {bin_dir}.\n"
+            f"Your shell isn't one Bountiful knows, so at the end it shows\n"
+            f"the line that lets your terminal find the command."
+        )
+
+    if any(MODELS_DIR.glob("*.gguf")):
+        models = (
+            "It also checks the AI models in ~/.bountiful and downloads any\n"
+            "that are missing or out of date."
+        )
+    else:
+        models = (
+            f"It also downloads 3 AI models into ~/.bountiful, {MODELS_SIZE}\n"
+            "depending on your machine. Their exact sizes are shown before\n"
+            "the download begins.\n"
+            "\n"
+            "On a slow connection this can take hours. If it's interrupted,\n"
+            "run python3 build.py again and it picks up where it stopped."
+        )
+    return f"{command}\n{models}"
+
+
+def agree(record: dict, setup: tuple[Path, str] | None) -> bool:
+    """Ask, once, whether to install. False if the answer is no.
+
+    The answer is recorded, so a re-run goes straight back to work.
+    With no one at the keyboard, as when an app or a script runs the
+    build, it installs without asking but leaves the shell's startup
+    file alone, since that's the one thing outside Bountiful's own
+    folders, and nothing is recorded.
+    """
+    if record.get("installed"):
+        return True
+
+    print()
+    print(statement(setup))
+    print()
+
+    if not sys.stdin.isatty():
+        print(
+            "No one is at the keyboard, so Bountiful installs without asking\n"
+            "and leaves your shell's startup file alone."
+        )
+        return True
+
+    if not ask("Install Bountiful?"):
+        return False
+    record["installed"] = True
+    write_record(record)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -144,9 +268,44 @@ def disable_push() -> None:
 # Environment
 # ---------------------------------------------------------------------------
 
-def create_venv() -> None:
-    print("\n[1/2] Python environment and Bountiful's packages")
+def venv_python() -> Path:
+    if os.name == "nt":
+        return VENV / "Scripts" / "python.exe"
+    return VENV / "bin" / "python"
 
+
+def venv_command() -> Path:
+    """The bountiful command pip installs into the environment."""
+    return VENV / "bin" / "bountiful"
+
+
+def venv_version() -> tuple[int, int] | None:
+    """The major.minor Python version the venv was built with.
+
+    Every venv records its interpreter version in pyvenv.cfg. Returns
+    None if the file is missing or unreadable.
+    """
+    cfg = VENV / "pyvenv.cfg"
+    if not cfg.exists():
+        return None
+    for line in cfg.read_text().splitlines():
+        key, _, value = line.partition("=")
+        if key.strip() in ("version", "version_info"):
+            try:
+                major, minor = value.strip().split(".")[:2]
+                return int(major), int(minor)
+            except ValueError:
+                return None
+    return None
+
+
+def describe(version: tuple[int, int] | None) -> str:
+    if version is None:
+        return "an unknown version"
+    return f"{version[0]}.{version[1]}"
+
+
+def create_venv() -> None:
     # A venv borrows the system interpreter. If the system Python has
     # moved to a new minor version since the venv was built, the venv
     # is stale and cannot be repaired in place, so it is rebuilt.
@@ -163,11 +322,11 @@ def create_venv() -> None:
 
     if not venv_python().exists():
         subprocess.run([sys.executable, "-m", "venv", str(VENV)], check=True)
-        print(f"    created a virtual environment in {VENV}")
+        print(f"    created a virtual environment in {short(VENV)}")
     else:
-        print(f"    using the existing virtual environment in {VENV}")
+        print(f"    using the virtual environment in {short(VENV)}")
 
-    print("    installing basic-bot and basic-ui from GitHub")
+    print("    installing Bountiful's packages from GitHub")
     result = subprocess.run(
         [
             str(venv_python()), "-m", "pip", "install", "--quiet",
@@ -183,14 +342,12 @@ def create_venv() -> None:
     print("    packages installed")
 
 
-def build_infra(options: list[str]) -> None:
-    print("\n[2/2] llama.cpp and AI models, shared by every agent in ~/.bountiful/")
-
-    # Options such as --models belong to the engine, so they're passed
-    # along unread. New options then never need a change here.
-    result = subprocess.run(
-        [str(venv_python()), "-m", "basic_bot", *options],
-    )
+def build_engine() -> None:
+    """llama.cpp, the hardware profile, and the models, by the engine."""
+    global _in_engine
+    _in_engine = True
+    result = subprocess.run([str(venv_python()), "-m", "basic_bot"])
+    _in_engine = False
     if result.returncode != 0:
         # basic_bot has already explained what failed and what to do.
         sys.exit(result.returncode)
@@ -204,106 +361,61 @@ def link_command() -> None:
     """Link ~/.local/bin/bountiful to this clone's command.
 
     This is part of installing Bountiful, so it happens on every build.
-    A link that already points elsewhere is left alone.
+    A link or file there that isn't this clone's is left alone.
     """
     if LINK.is_symlink() and LINK.resolve() == venv_command().resolve():
+        print(f"    installed in {short(USER_BIN)}")
         return
     if LINK.exists() or LINK.is_symlink():
         print(
-            f"\n    {LINK} already exists and isn't this clone's command, so it "
-            f"was left alone.\n    Remove it, then build again, to use this one."
+            f"    {short(LINK)} already exists and isn't this clone's command, "
+            f"so it was left alone.\n"
+            f"    Remove it, then build again, to use this one."
         )
         return
     USER_BIN.mkdir(parents=True, exist_ok=True)
     LINK.symlink_to(venv_command())
-    print(f"\n    installed the bountiful command in {USER_BIN}")
-    print(f"      (to remove it: rm {LINK})")
+    print(f"    installed in {short(USER_BIN)}")
+    print(f"      (to remove it: rm {short(LINK)})")
 
 
-def on_path(folder: Path) -> bool:
-    return any(
-        Path(p).expanduser().resolve() == folder.resolve()
-        for p in os.environ.get("PATH", "").split(os.pathsep) if p
-    )
+def put_on_path(record: dict, setup: tuple[Path, str] | None,
+                may_edit: bool) -> str:
+    """Make sure new terminals find the command.
 
-
-def startup_file() -> Path | None:
-    """The shell startup file to add the PATH line to, if known."""
-    shell = Path(os.environ.get("SHELL", "")).name
-    if shell == "zsh":
-        return Path.home() / ".zshrc"
-    if shell == "bash":
-        # On a Mac, Terminal opens login shells, which read .bash_profile
-        name = ".bash_profile" if sys.platform == "darwin" else ".bashrc"
-        return Path.home() / name
-    return None
-
-
-def _install_record() -> dict:
-    try:
-        return json.loads(INSTALL_RECORD.read_text())
-    except (OSError, ValueError):
-        return {}
-
-
-def offer_path() -> None:
-    """Offer, once, to put ~/.local/bin on the PATH.
-
-    The line goes in the shell's startup file only if the user says
-    yes. Either way, the question isn't asked again.
+    Returns "ready" if this terminal already finds it, "new terminal"
+    if a new terminal window will, and "by hand" if the user has to add
+    the line themselves. A line the build added once and the user later
+    removed isn't added again.
     """
     if on_path(USER_BIN):
-        return
+        return "ready"
+    if in_startup_file(setup):
+        return "new terminal"
 
-    record = _install_record()
-    rc = startup_file()
-    already_added = rc is not None and rc.exists() and PATH_LINE in rc.read_text()
-    asked = record.get("path_offered", False)
-
-    if already_added:
-        print(
-            "\n    Open a new terminal so it finds the bountiful command."
-        )
-        return
-
-    if asked or rc is None or not sys.stdin.isatty():
-        where = f"to {_short(rc)}" if rc else "to your shell's startup file"
-        print(
-            f"\n    {_short(USER_BIN)} isn't on your PATH, so terminals won't "
-            f"find the bountiful command.\n    To fix that, add this line "
-            f"{where}, then open a new terminal:\n\n"
-            f"        {PATH_LINE}"
-        )
-        return
-
-    print(
-        f"\n    The bountiful command is installed in {_short(USER_BIN)}, "
-        f"which isn't on your PATH yet."
-    )
-    print(f"    This line would let every new terminal find it:\n\n        {PATH_LINE}\n")
-    try:
-        answer = input(f"    Add it to {_short(rc)}? [Y/n] ").strip().lower()
-    except EOFError:
-        answer = "n"
-
-    record["path_offered"] = True
-    BOUNTIFUL_HOME.mkdir(parents=True, exist_ok=True)
-    INSTALL_RECORD.write_text(json.dumps(record, indent=2) + "\n")
-
-    if answer in ("", "y", "yes"):
+    if setup is not None and may_edit and not record.get("path_added"):
+        rc, line = setup
+        rc.parent.mkdir(parents=True, exist_ok=True)
         with open(rc, "a") as f:
-            f.write(f"\n# Added by Bountiful's build.py: find the bountiful command\n{PATH_LINE}\n")
-        print(f"    added to {_short(rc)}. Open a new terminal to use it.")
-    else:
-        print(f"    left {_short(rc)} alone. Add the line yourself whenever you like.")
+            f.write(f"\n# Added by Bountiful: find the bountiful command\n{line}\n")
+        record["path_added"] = True
+        write_record(record)
+        print(f"    added {short(USER_BIN)} to your PATH in {short(rc)}")
+        return "new terminal"
+
+    where = f"to {short(setup[0])}" if setup else "to your shell's startup file"
+    line = setup[1] if setup else PATH_LINE
+    print(
+        f"    {short(USER_BIN)} isn't on your PATH. To type 'bountiful' "
+        f"anywhere,\n    add this line {where},\n    then open a new "
+        f"terminal window:\n\n        {line}"
+    )
+    return "by hand"
 
 
-def _short(path: Path) -> str:
-    try:
-        return "~/" + str(path.relative_to(Path.home()))
-    except ValueError:
-        return str(path)
-
+# ---------------------------------------------------------------------------
+# The end
+# ---------------------------------------------------------------------------
 
 def agent_ids() -> list[str]:
     try:
@@ -312,24 +424,56 @@ def agent_ids() -> list[str]:
         return []
 
 
+def closing(path_state: str) -> str:
+    """The last words: what to type next."""
+    command = "bountiful" if path_state != "by hand" else short(LINK)
+    if path_state == "new terminal":
+        first = "Open a new terminal window, then"
+    elif path_state == "by hand":
+        first = f"Until {short(USER_BIN)} is on your PATH,"
+    else:
+        first = ""
+
+    ids = agent_ids()
+    if ids:
+        lead = f"{first} start an agent:" if first else "Start an agent:"
+        lines = [f"Setup complete. {lead}", ""]
+        lines += [f"    {command} {agent_id}" for agent_id in ids]
+        return "\n".join(lines)
+
+    run = f"Setup complete. {first} run" if first else "Setup complete. Run"
+    rest = f"'{command} new' to create your first agent."
+    # One line if it fits, otherwise broken before the command, so the
+    # command is never split
+    joiner = " " if len(run) + len(rest) < 64 else "\n"
+    return f"{run}{joiner}{rest}"
+
+
 def main() -> None:
+    if sys.argv[1:]:
+        if "--models" in sys.argv[1:]:
+            sys.exit("Optional models are chosen with 'bountiful models' now.")
+        sys.exit("python3 build.py takes no options.")
+
     print("Bountiful — setup")
+    record = read_record()
+    setup = shell_setup()
+    if not agree(record, setup):
+        print("\nNothing was installed.")
+        return
+
+    print("\nPython environment")
     disable_push()
     create_venv()
 
+    build_engine()
+
+    print("\nThe bountiful command")
     link_command()
-    offer_path()
+    path_state = put_on_path(record, setup, may_edit=bool(record.get("installed")))
 
-    build_infra(sys.argv[1:])
-
-    print("\nSetup complete.")
-    ids = agent_ids()
-    if ids:
-        print("\nStart an agent:")
-        for agent_id in ids:
-            print(f"    bountiful {agent_id}")
-    else:
-        print("\nCreate your first agent:\n\n    bountiful new")
+    print()
+    print(closing(path_state))
     print()
 
 
@@ -337,5 +481,6 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        # Any running step has already said how to resume.
+        if not _in_engine:
+            print("\n\nStopped. Run 'python3 build.py' again to carry on.")
         sys.exit(130)
