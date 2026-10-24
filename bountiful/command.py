@@ -29,7 +29,11 @@ from basic_bot.agent import (
 
 # The first word after 'bountiful' is either one of these or an
 # agent's id, so no agent may be named after one of them.
-COMMANDS = ("chat", "new", "import", "list", "forget", "models", "update", "version", "help")
+COMMANDS = (
+    "chat", "new", "import", "list", "forget", "models",
+    "tools", "add", "remove", "keys",
+    "update", "version", "help",
+)
 
 USAGE = """\
 Usage:
@@ -40,6 +44,11 @@ Usage:
     bountiful list            the agents this machine knows
     bountiful forget ID       remove an agent from the list; its folder is untouched
     bountiful models          add or remove optional chat models
+    bountiful tools           the tool groups available, and which agents use each
+    bountiful tools ID        an agent's tool groups, and what each still needs
+    bountiful add ID GROUP    turn a tool group on for an agent
+    bountiful remove ID GROUP turn it off; its settings are kept
+    bountiful keys ID GROUP   store an agent's keys for a group (--delete removes them)
     bountiful update          check for a new version and install it
     bountiful version         show the installed version"""
 
@@ -188,6 +197,48 @@ def models() -> None:
     models_main()
 
 
+def _addon(action: str, *args, **kwargs) -> None:
+    """Run one of extend-a-bot's add-on actions, reporting its errors.
+
+    Imported here rather than at the top, since keyring takes a moment
+    to load and only these commands need it.
+    """
+    from extend_a_bot import addons
+    try:
+        getattr(addons, action)(*args, **kwargs)
+    except addons.AddonError as e:
+        _fail(str(e))
+
+
+def tools(args: list[str]) -> None:
+    """The tool groups available, or one agent's."""
+    if not args:
+        present = [(e.agent_id, e.folder) for e in registry.entries() if e.present]
+        _addon("show_available", present)
+    elif len(args) == 1:
+        _addon("show_agent", args[0], _folder(args[0]))
+    else:
+        sys.exit("Usage: bountiful tools [ID]")
+
+
+def add(agent_id: str, group: str) -> None:
+    _addon("add", agent_id, _folder(agent_id), group)
+
+
+def remove(agent_id: str, group: str) -> None:
+    _addon("remove", agent_id, _folder(agent_id), group)
+
+
+def keys(args: list[str]) -> None:
+    delete = "--delete" in args
+    rest = [a for a in args if a != "--delete"]
+    if len(rest) != 2:
+        sys.exit("Usage: bountiful keys ID GROUP [--delete]")
+    agent_id, group = rest
+    _folder(agent_id)  # the agent must be recorded and present
+    _addon("keys", agent_id, group, delete=delete)
+
+
 def version() -> None:
     print(f"bountiful {bountiful.__version__}")
 
@@ -283,6 +334,12 @@ def _one(args: list[str], usage: str) -> str:
     return args[0]
 
 
+def _two(args: list[str], usage: str) -> tuple[str, str]:
+    if len(args) != 2:
+        sys.exit(f"Usage: {usage}")
+    return args[0], args[1]
+
+
 def main() -> None:
     args = sys.argv[1:]
 
@@ -306,6 +363,14 @@ def main() -> None:
             forget(_one(rest, "bountiful forget ID"))
         elif command == "models":
             models()
+        elif command == "tools":
+            tools(rest)
+        elif command == "add":
+            add(*_two(rest, "bountiful add ID GROUP"))
+        elif command == "remove":
+            remove(*_two(rest, "bountiful remove ID GROUP"))
+        elif command == "keys":
+            keys(rest)
         elif command == "update":
             update()
         elif command == "version":
