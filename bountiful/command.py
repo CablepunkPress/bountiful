@@ -24,24 +24,23 @@ from basic_bot.agent import (
     id_from,
     id_problem,
     load_agent,
-    name_from,
 )
 
 # The first word after 'bountiful' is either one of these or an
-# agent's id, so no agent may be named after one of them.
+# agent's id, so no agent's id may be one of them.
 COMMANDS = (
-    "chat", "new", "import", "list", "forget", "models",
+    "create", "agents", "chat", "import", "forget", "models",
     "tools", "add", "remove", "keys",
     "update", "version", "help",
 )
 
 USAGE = """\
 Usage:
-    bountiful ID              start an agent's web page, as in 'bountiful jeden'
+    bountiful create NAME     name and create a new agent, as in 'bountiful create Alice'
+    bountiful ID              start an agent, as in 'bountiful alice'
+    bountiful agents          the agents this machine knows, and their folders
     bountiful chat ID         chat with an agent in the terminal
-    bountiful new             name a new agent and create its folder
     bountiful import FOLDER   record an agent folder, e.g. after moving machines
-    bountiful list            the agents this machine knows
     bountiful forget ID       remove an agent from the list; its folder is untouched
     bountiful models          add or remove optional chat models
     bountiful tools           the tool groups available, and which agents use each
@@ -115,38 +114,69 @@ def chat(agent_id: str) -> None:
     terminal_chat(folder, folder / DATA_DIR)
 
 
-def new() -> None:
-    """Name a new agent, create its folder, and record it."""
-    if not sys.stdin.isatty():
-        _fail("Creating an agent asks questions, so run it in a terminal.")
+def _in_folder(parent: Path, agent_id: str) -> bool:
+    """Whether parent already holds something by this name, in any case.
 
+    A Mac's disk ignores case and Linux's doesn't, so ~/Music blocks
+    music on both: the agent's folder may be moved or imported later.
+    """
+    try:
+        return any(entry.name.lower() == agent_id for entry in parent.iterdir())
+    except FileNotFoundError:
+        return False
+
+
+def _free_id(base: str, parent: Path, n: int) -> tuple[str, int]:
+    """The first usable id from base, numbered n or higher.
+
+    n is 0 for base itself, then base-1, base-2, and so on. An id is
+    usable if it isn't a command or reserved, no other agent uses it,
+    and nothing in parent has its name. The number only ever goes up,
+    so an id once offered never drops back.
+    """
     while True:
-        name = input("Your agent's name: ").strip()
-        agent_id = id_from(name)
-        problem = _id_problem(agent_id)
-        if problem is None and (taken := registry.id_taken(agent_id)):
-            problem = f"Another agent already uses the id '{agent_id}', at {_short(taken)}."
-        if problem is None:
-            break
-        print(f"  {problem}")
+        agent_id = f"{base}-{n}" if n else base
+        if not (
+            _id_problem(agent_id)
+            or registry.id_taken(agent_id)
+            or _in_folder(parent, agent_id)
+        ):
+            return agent_id, n
+        n += 1
 
-    # A name typed as a bare id, like "jeden", is shown as "Jeden"
-    if name == agent_id:
-        name = name_from(agent_id)
 
-    folder = Path.home() / agent_id
-    print(f"  id: {agent_id}")
-    if not _ask(f"Create it at {_short(folder)}?", True):
-        answer = input(
-            f"Which folder should {name}'s folder go in? (such as ~/myAgents) "
-        ).strip()
-        if not answer:
-            sys.exit("Nothing created.")
-        folder = Path(answer).expanduser().resolve() / agent_id
-        if not _ask(f"Create it at {_short(folder)}?", True):
-            sys.exit("Nothing created.")
-        # The user named this folder, so creating it is what they asked for
-        folder.parent.mkdir(parents=True, exist_ok=True)
+def create(words: list[str]) -> None:
+    """Create a new agent from its name, in a folder named by its id."""
+    name = " ".join(words).strip()
+    if not name:
+        sys.exit("Usage: bountiful create NAME, as in 'bountiful create Alice'")
+    if not sys.stdin.isatty():
+        _fail("Creating an agent asks before it creates, so run it in a terminal.")
+
+    base = id_from(name)
+    if not base:
+        _fail(
+            f"Couldn't make an id from '{name}'. "
+            f"Use a name with Latin letters or numbers."
+        )
+
+    parent, n = Path.home(), 0
+    try:
+        while True:
+            agent_id, n = _free_id(base, parent, n)
+            folder = parent / agent_id
+            if not parent.exists():
+                print(f"{_short(parent)} doesn't exist yet, so it will be created too.")
+            if _ask(f"Create {name} with ID={agent_id} at {_short(folder)}?", True):
+                break
+            answer = input(
+                f"Which folder should {agent_id} go in? (such as ~/myAgents) "
+            ).strip()
+            if answer:
+                parent = Path(answer).expanduser().resolve()
+    except KeyboardInterrupt:
+        print("\nNothing created.")
+        sys.exit(130)
 
     try:
         folder = create_agent(folder, agent_id, name)
@@ -174,10 +204,10 @@ def import_(path: str) -> None:
     print(f"Start it with:  bountiful {entry.agent_id}")
 
 
-def list_() -> None:
+def agents() -> None:
     found = registry.entries()
     if not found:
-        print("No agents yet. Create one with 'bountiful new'.")
+        print("No agents yet. Create one with 'bountiful create NAME'.")
         return
     for entry in found:
         where = _short(entry.folder)
@@ -346,19 +376,17 @@ def main() -> None:
     try:
         if not args or args[0] in ("help", "-h", "--help"):
             print(USAGE)
-            print("\nAgents:")
-            list_()
             return
 
         command, rest = args[0], args[1:]
-        if command == "chat":
+        if command == "create":
+            create(rest)
+        elif command == "agents":
+            agents()
+        elif command == "chat":
             chat(_one(rest, "bountiful chat ID"))
-        elif command == "new":
-            new()
         elif command == "import":
             import_(_one(rest, "bountiful import FOLDER"))
-        elif command == "list":
-            list_()
         elif command == "forget":
             forget(_one(rest, "bountiful forget ID"))
         elif command == "models":
