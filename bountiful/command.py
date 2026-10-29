@@ -36,7 +36,7 @@ COMMANDS = (
 
 USAGE = """\
 Usage:
-    bountiful create NAME     name and create a new agent, as in 'bountiful create Alice'
+    bountiful create NAME     create a new agent, as in 'bountiful create Alice'
     bountiful ID              start an agent, as in 'bountiful alice'
     bountiful agents          the agents this machine knows, and their folders
     bountiful chat ID         chat with an agent in the terminal
@@ -89,7 +89,7 @@ def _folder(agent_id: str) -> Path:
     entry = registry.find(agent_id)
     if entry is None:
         _fail(
-            f"No agent named '{agent_id}'. 'bountiful list' shows the agents "
+            f"No agent named '{agent_id}'. 'bountiful agents' shows the agents "
             f"this machine knows; 'bountiful import FOLDER' adds one."
         )
     if not entry.present:
@@ -185,7 +185,6 @@ def create(words: list[str]) -> None:
         _fail(str(e))
 
     print(f"\nCreated {name} at {_short(folder)}.")
-    print(f"Edit {_short(folder / 'persona.md')} to shape who {name} is.")
     print(f"Start {name} with:  bountiful {agent_id}")
 
 
