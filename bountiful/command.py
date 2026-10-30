@@ -1,13 +1,14 @@
 """The bountiful command: start, create, and manage agents.
 
-USAGE below lists the commands. There is no default agent. Every
-agent is started the same way, by typing its id, so starting one is
-always a deliberate choice.
+USAGE below lists the subcommands. The first word after 'bountiful'
+is one slot, filled by two lists: SUBCOMMANDS, the same on every
+machine, and the registered agents' ids, different on every machine.
+A registered id starts that agent, so there is no default agent, and
+starting one is always a deliberate choice.
 
-This is the application's policy: new agents go in the home folder by
-default, an agent's data goes in the data folder inside it, and an id
-starts the web page. The mechanisms it uses, creating agents, the
-list of agents, and sessions, belong to basic-bot.
+Every agent lives in the home folder, at ~/ID, and its data in the
+data folder inside it. The mechanisms this uses, creating an agent,
+the registry, and sessions, belong to basic-bot.
 """
 
 import os
@@ -26,10 +27,12 @@ from basic_bot.agent import (
     load_agent,
 )
 
-# The first word after 'bountiful' is either one of these or an
-# agent's id, so no agent's id may be one of them.
-COMMANDS = (
-    "create", "agents", "chat", "import", "forget", "models",
+# Every subcommand. The first word after 'bountiful' is either one of
+# these or a registered id, and these are checked first, so no agent's
+# id may be one of them. A word likely to become a subcommand can be
+# added here ahead of time, with a note saying so.
+SUBCOMMANDS = (
+    "create", "agents", "register", "forget", "chat", "models",
     "tools", "add", "remove", "keys",
     "update", "version", "help",
 )
@@ -45,8 +48,8 @@ Usage:
     bountiful add ID GROUP    turn a tool group on for an agent
     bountiful remove ID GROUP turn it off; its settings are kept
     bountiful keys ID GROUP   store an agent's keys for a group (--delete removes them)
-    bountiful import FOLDER   record an agent folder, e.g. after moving machines
-    bountiful forget ID       remove an agent from the list; its folder is untouched
+    bountiful register ID     register an agent's folder in home
+    bountiful forget ID       unregister an agent; its folder is untouched
     bountiful version         show the installed version
     bountiful update          check for a new version and install it"""
 
@@ -73,33 +76,24 @@ def _short(path: Path) -> str:
 
 
 def _id_problem(agent_id: str) -> str | None:
-    """The engine's id rules, plus this command's: no command names."""
+    """The engine's id rules, plus this command's: no subcommands."""
     problem = id_problem(agent_id)
-    if problem is None and agent_id in COMMANDS:
-        problem = (
-            f"'{agent_id}' can't be used because it's one of bountiful's "
-            f"commands, so 'bountiful {agent_id}' couldn't start the agent."
-        )
+    if problem is None and agent_id in SUBCOMMANDS:
+        problem = f"'{agent_id}' is a subcommand."
     return problem
 
 
 def _folder(agent_id: str) -> Path:
-    """The folder of the agent with this id, which must be recorded."""
-    entry = registry.find(agent_id)
-    if entry is None:
-        _fail(
-            f"No agent named '{agent_id}'. 'bountiful agents' shows the agents "
-            f"this machine knows; 'bountiful import FOLDER' adds one."
-        )
-    if not entry.present:
-        _fail(
-            f"{agent_id}'s folder, {_short(entry.folder)}, isn't there "
-            f"anymore. If it moved, run 'bountiful import NEW_FOLDER'."
-        )
-    return entry.folder
+    """The folder of a registered agent, which must still be there."""
+    if not registry.registered(agent_id):
+        _fail(f"'{agent_id}' does not exist.")
+    folder = registry.folder(agent_id)
+    if not (folder / "agent.json").is_file():
+        _fail(f"{_short(folder)} is missing.")
+    return folder
 
 
-# --- Commands ---
+# --- Subcommands ---
 
 def start(agent_id: str) -> None:
     folder = _folder(agent_id)
@@ -113,39 +107,35 @@ def chat(agent_id: str) -> None:
     terminal_chat(folder, folder / DATA_DIR)
 
 
-def _in_folder(parent: Path, agent_id: str) -> bool:
-    """Whether parent already holds something by this name, in any case.
+def _in_home(agent_id: str) -> bool:
+    """Whether home already holds something by this name, in any case.
 
     A Mac's disk ignores case and Linux's doesn't, so ~/Music blocks
-    music on both: the agent's folder may be moved or imported later.
+    music on both.
     """
-    try:
-        return any(entry.name.lower() == agent_id for entry in parent.iterdir())
-    except FileNotFoundError:
-        return False
+    return any(entry.name.lower() == agent_id for entry in Path.home().iterdir())
 
 
-def _free_id(base: str, parent: Path, n: int) -> tuple[str, int]:
-    """The first usable id from base, numbered n or higher.
+def _free_id(base: str) -> str:
+    """The first usable id from base: base, then base-1, base-2, and so on.
 
-    n is 0 for base itself, then base-1, base-2, and so on. An id is
-    usable if it isn't a command or reserved, no other agent uses it,
-    and nothing in parent has its name. The number only ever goes up,
-    so an id once offered never drops back.
+    An id is usable if it isn't a subcommand or reserved, isn't
+    registered, and nothing in home has its name.
     """
+    n = 0
     while True:
         agent_id = f"{base}-{n}" if n else base
         if not (
             _id_problem(agent_id)
-            or registry.id_taken(agent_id)
-            or _in_folder(parent, agent_id)
+            or registry.registered(agent_id)
+            or _in_home(agent_id)
         ):
-            return agent_id, n
+            return agent_id
         n += 1
 
 
 def create(words: list[str]) -> None:
-    """Create a new agent from its name, in a folder named by its id."""
+    """Create a new agent from its name, in ~/ID, and register it."""
     name = " ".join(words).strip()
     if not name:
         sys.exit("Usage: bountiful create NAME, as in 'bountiful create Alice'")
@@ -159,64 +149,55 @@ def create(words: list[str]) -> None:
             f"Use a name with Latin letters or numbers."
         )
 
-    parent, n = Path.home(), 0
+    agent_id = _free_id(base)
+    folder = registry.folder(agent_id)
     try:
-        while True:
-            agent_id, n = _free_id(base, parent, n)
-            folder = parent / agent_id
-            if not parent.exists():
-                print(f"{_short(parent)} doesn't exist yet, so it will be created too.")
-            if _ask(f"Create {name} with ID={agent_id} at {_short(folder)}?", True):
-                break
-            answer = input(
-                f"Which folder should {agent_id} go in? (such as ~/myAgents) "
-            ).strip()
-            if answer:
-                parent = Path(answer).expanduser().resolve()
+        agreed = _ask(f"Create {name} with ID={agent_id} at {_short(folder)}?", True)
     except KeyboardInterrupt:
-        print("\nNothing created.")
-        sys.exit(130)
+        print()
+        agreed = False
+    if not agreed:
+        print("No new agent was created.")
+        return
 
-    try:
-        folder = create_agent(folder, agent_id, name)
-        registry.record(folder)
-    except (AgentError, registry.RegistryError) as e:
-        _fail(str(e))
-
+    create_agent(folder, agent_id, name)
+    registry.register(agent_id)
     print(f"\nCreated {name} at {_short(folder)}.")
-    print(f"Start {name} with:  bountiful {agent_id}")
+    print(f"Start {name} with 'bountiful {agent_id}'.")
 
 
-def import_(path: str) -> None:
-    folder = Path(path).expanduser()
-    if not (folder / "agent.json").is_file() and (Path.home() / path / "agent.json").is_file():
-        folder = Path.home() / path
-    folder = folder.resolve()
-
-    agent_id = load_agent(folder)["id"]
+def register(agent_id: str) -> None:
     problem = _id_problem(agent_id)
     if problem:
-        _fail(f"{problem} Change the id in {_short(folder / 'agent.json')} first.")
-    entry = registry.record(folder)
-    print(f"Recorded {entry.agent_id} at {_short(folder)}.")
-    print(f"Start it with:  bountiful {entry.agent_id}")
-
-
-def agents() -> None:
-    found = registry.entries()
-    if not found:
-        print("No agents yet. Create one with 'bountiful create NAME'.")
-        return
-    for entry in found:
-        where = _short(entry.folder)
-        if not entry.present:
-            where += "  (missing: if it moved, import it again)"
-        print(f"  {entry.agent_id:<20} {where}")
+        _fail(problem)
+    registry.register(agent_id)
+    print(f"Registered {agent_id}.")
 
 
 def forget(agent_id: str) -> None:
-    folder = registry.forget(agent_id)
-    print(f"Removed {agent_id} from the list. Its folder, {_short(folder)}, is untouched.")
+    registry.forget(agent_id)
+    print(f"Forgot {agent_id}. Its folder is untouched.")
+
+
+def agents() -> None:
+    """The registered agents, with each one's name and folder."""
+    rows = [("ID", "NAME", "FOLDER")]
+    for agent_id in registry.ids():
+        folder = registry.folder(agent_id)
+        try:
+            name = load_agent(folder)["name"]
+            where = _short(folder)
+        except AgentError:
+            name, where = "", "Missing"
+        rows.append((agent_id, name, where))
+
+    if len(rows) == 1:
+        print("No agents yet.")
+        return
+    id_width = max(len(r[0]) for r in rows) + 4
+    name_width = max(len(r[1]) for r in rows) + 4
+    for agent_id, name, where in rows:
+        print(f"{agent_id:<{id_width}}{name:<{name_width}}{where}")
 
 
 def models() -> None:
@@ -229,7 +210,7 @@ def _addon(action: str, *args, **kwargs) -> None:
     """Run one of extend-a-bot's add-on actions, reporting its errors.
 
     Imported here rather than at the top, since keyring takes a moment
-    to load and only these commands need it.
+    to load and only these subcommands need it.
     """
     from extend_a_bot import addons
     try:
@@ -241,7 +222,11 @@ def _addon(action: str, *args, **kwargs) -> None:
 def tools(args: list[str]) -> None:
     """The tool groups available, or one agent's."""
     if not args:
-        present = [(e.agent_id, e.folder) for e in registry.entries() if e.present]
+        present = [
+            (agent_id, registry.folder(agent_id))
+            for agent_id in registry.ids()
+            if (registry.folder(agent_id) / "agent.json").is_file()
+        ]
         _addon("show_available", present)
     elif len(args) == 1:
         _addon("show_agent", args[0], _folder(args[0]))
@@ -263,7 +248,7 @@ def keys(args: list[str]) -> None:
     if len(rest) != 2:
         sys.exit("Usage: bountiful keys ID GROUP [--delete]")
     agent_id, group = rest
-    _folder(agent_id)  # the agent must be recorded and present
+    _folder(agent_id)  # the agent must be registered and present
     _addon("keys", agent_id, group, delete=delete)
 
 
@@ -381,12 +366,12 @@ def main() -> None:
             create(rest)
         elif command == "agents":
             agents()
-        elif command == "chat":
-            chat(_one(rest, "bountiful chat ID"))
-        elif command == "import":
-            import_(_one(rest, "bountiful import FOLDER"))
+        elif command == "register":
+            register(_one(rest, "bountiful register ID"))
         elif command == "forget":
             forget(_one(rest, "bountiful forget ID"))
+        elif command == "chat":
+            chat(_one(rest, "bountiful chat ID"))
         elif command == "models":
             models()
         elif command == "tools":
@@ -401,11 +386,10 @@ def main() -> None:
             update()
         elif command in ("version", "-v", "-V", "--version"):
             version()
+        elif not registry.registered(command):
+            sys.exit(f"'{command}' is not a subcommand. Run 'bountiful' for a list.")
         elif rest:
-            sys.exit(
-                f"'{command}' isn't a command, and an agent's id takes "
-                f"nothing after it.\n\n{USAGE}"
-            )
+            sys.exit(f"'{command}' takes nothing after it.")
         else:
             start(command)
     except (AgentError, registry.RegistryError) as e:
