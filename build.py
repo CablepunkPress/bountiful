@@ -1,25 +1,14 @@
 """Install Bountiful on this machine.
 
-Installing Bountiful installs the bountiful command, the way installing
-the Google Cloud SDK installs gcloud. The build asks one question
-first, then does everything else on its own, so a long download can
-run while no one is watching. When it says "Setup complete",
-everything is ready:
+Asks one question, then installs, on its own:
 
-    the virtual environment, with Bountiful's packages
-    llama.cpp, built for this machine, in ~/.bountiful
-    the AI models every agent needs, in ~/.bountiful
-    the bountiful command, in ~/.local/bin and on the PATH
+- the virtual environment, with Bountiful's packages
+- llama.cpp, built for this machine, in ~/.bountiful
+- the AI models every agent needs, in ~/.bountiful
+- the bountiful command, in ~/.local/bin and on the PATH
 
-Optional chat models are never part of the build. They come later
-with 'bountiful models', or not at all.
-
-The question is asked once, and the answer is recorded, so re-running
-after an interruption goes straight back to work and picks up where
-it left off. Re-running after a system Python upgrade rebuilds the
-environment for the new interpreter. No agent's files are ever touched.
-
-Run with the system Python:
+The answer is recorded, so running it again after an interruption
+picks up where it stopped. Run it with the system Python:
 
     python3 build.py
 """
@@ -58,10 +47,9 @@ LINK = USER_BIN / "bountiful"
 # Bountiful's shared folder, as in basic_bot/paths.py. This file runs
 # before the engine is installed, so it can't import it. install.json
 # records the user's answer to the install question, and whether the
-# build added the PATH line; agents.json is the engine's list of agents.
+# build added the PATH line.
 BOUNTIFUL_HOME = Path.home() / ".bountiful"
 INSTALL_RECORD = BOUNTIFUL_HOME / "install.json"
-AGENTS_REGISTRY = BOUNTIFUL_HOME / "agents.json"
 MODELS_DIR = BOUNTIFUL_HOME / "models"
 
 # The line added to a shell's startup file. It puts ~/.local/bin at the
@@ -402,18 +390,15 @@ def link_command() -> None:
 
 
 def put_on_path(record: dict, setup: tuple[Path, str] | None,
-                may_edit: bool) -> str:
+                may_edit: bool) -> None:
     """Make sure new terminals find the command.
 
-    Returns "ready" if this terminal already finds it, "new terminal"
-    if a new terminal window will, and "by hand" if the user has to add
-    the line themselves. A line the build added once and the user later
-    removed isn't added again.
+    If the line can't be added, it's printed for the user to add. A
+    line the build added once and the user later removed isn't added
+    again.
     """
-    if on_path(USER_BIN):
-        return "ready"
-    if in_startup_file(setup):
-        return "new terminal"
+    if on_path(USER_BIN) or in_startup_file(setup):
+        return
 
     if setup is not None and may_edit and not record.get("path_added"):
         rc, line = setup
@@ -423,7 +408,7 @@ def put_on_path(record: dict, setup: tuple[Path, str] | None,
         record["path_added"] = True
         write_record(record)
         print(f"    added {short(USER_BIN)} to your PATH in {short(rc)}")
-        return "new terminal"
+        return
 
     where = f"to {short(setup[0])}" if setup else "to your shell's startup file"
     line = setup[1] if setup else PATH_LINE
@@ -432,43 +417,23 @@ def put_on_path(record: dict, setup: tuple[Path, str] | None,
         f"anywhere,\n    add this line {where},\n    then open a new "
         f"terminal window:\n\n        {line}"
     )
-    return "by hand"
 
 
 # ---------------------------------------------------------------------------
 # The end
 # ---------------------------------------------------------------------------
 
-def agent_ids() -> list[str]:
-    try:
-        return sorted(json.loads(AGENTS_REGISTRY.read_text()).get("agents", {}))
-    except (OSError, ValueError, AttributeError):
-        return []
+def closing() -> str:
+    """The last words, the same on a first install and on every rebuild.
 
-
-def closing(path_state: str) -> str:
-    """The last words: what to type next."""
-    command = "bountiful" if path_state != "by hand" else short(LINK)
-    if path_state == "new terminal":
-        first = "Open a new terminal window, then"
-    elif path_state == "by hand":
-        first = f"Until {short(USER_BIN)} is on your PATH,"
-    else:
-        first = ""
-
-    ids = agent_ids()
-    if ids:
-        lead = f"{first} start an agent:" if first else "Start an agent:"
-        lines = [f"Setup complete. {lead}", ""]
-        lines += [f"    {command} {agent_id}" for agent_id in ids]
-        return "\n".join(lines)
-
-    run = f"Setup complete. {first} run" if first else "Setup complete. Run"
-    rest = f"'{command} new' to create your first agent."
-    # One line if it fits, otherwise broken before the command, so the
-    # command is never split
-    joiner = " " if len(run) + len(rest) < 64 else "\n"
-    return f"{run}{joiner}{rest}"
+    Whether this terminal finds the command is the only question: after
+    a first install it usually doesn't, since the shell read its
+    startup file before the PATH line was added. Subcommands aren't
+    named, since they change and this message would have to follow.
+    """
+    if shutil.which("bountiful"):
+        return "Setup complete. Type 'bountiful' to begin."
+    return "Setup complete. Open a new terminal window, then type 'bountiful' to begin."
 
 
 def main() -> None:
@@ -492,10 +457,10 @@ def main() -> None:
 
     print("\nThe bountiful command")
     link_command()
-    path_state = put_on_path(record, setup, may_edit=bool(record.get("installed")))
+    put_on_path(record, setup, may_edit=bool(record.get("installed")))
 
     print()
-    print(closing(path_state))
+    print(closing())
     print()
 
 

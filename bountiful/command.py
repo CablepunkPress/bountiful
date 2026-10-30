@@ -38,18 +38,17 @@ USAGE = """\
 Usage:
     bountiful create NAME     create a new agent, as in 'bountiful create Alice'
     bountiful ID              start an agent, as in 'bountiful alice'
-    bountiful agents          the agents this machine knows, and their folders
-    bountiful chat ID         chat with an agent in the terminal
-    bountiful import FOLDER   record an agent folder, e.g. after moving machines
-    bountiful forget ID       remove an agent from the list; its folder is untouched
+    bountiful agents          the agents this machine knows
     bountiful models          add or remove optional chat models
     bountiful tools           the tool groups available, and which agents use each
     bountiful tools ID        an agent's tool groups, and what each still needs
     bountiful add ID GROUP    turn a tool group on for an agent
     bountiful remove ID GROUP turn it off; its settings are kept
     bountiful keys ID GROUP   store an agent's keys for a group (--delete removes them)
-    bountiful update          check for a new version and install it
-    bountiful version         show the installed version"""
+    bountiful import FOLDER   record an agent folder, e.g. after moving machines
+    bountiful forget ID       remove an agent from the list; its folder is untouched
+    bountiful version         show the installed version
+    bountiful update          check for a new version and install it"""
 
 
 def _fail(message: str) -> NoReturn:
@@ -400,7 +399,7 @@ def main() -> None:
             keys(rest)
         elif command == "update":
             update()
-        elif command == "version":
+        elif command in ("version", "-v", "-V", "--version"):
             version()
         elif rest:
             sys.exit(
