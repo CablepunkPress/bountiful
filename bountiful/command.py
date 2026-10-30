@@ -26,6 +26,7 @@ from basic_bot.agent import (
     id_problem,
     load_agent,
 )
+from basic_bot.paths import AGENTS_HOME
 
 # Every subcommand. The first word after 'bountiful' is either one of
 # these or a registered id, and these are checked first, so no agent's
@@ -113,7 +114,7 @@ def _in_home(agent_id: str) -> bool:
     A Mac's disk ignores case and Linux's doesn't, so ~/Music blocks
     music on both.
     """
-    return any(entry.name.lower() == agent_id for entry in Path.home().iterdir())
+    return any(entry.name.lower() == agent_id for entry in AGENTS_HOME.iterdir())
 
 
 def _free_id(base: str) -> str:
