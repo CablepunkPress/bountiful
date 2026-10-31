@@ -34,7 +34,7 @@ from basic_bot.paths import AGENTS_HOME
 # added here ahead of time, with a note saying so.
 SUBCOMMANDS = (
     "create", "agents", "register", "forget", "chat", "models",
-    "tools", "add", "remove", "keys",
+    "tools", "add", "remove",
     "update", "version", "help",
 )
 
@@ -43,14 +43,13 @@ Usage:
     bountiful create NAME     create a new agent, as in 'bountiful create Alice'
     bountiful ID              start an agent, as in 'bountiful alice'
     bountiful agents          the agents this machine knows
+    bountiful forget ID       unregister an agent; its folder is untouched
+    bountiful register ID     register an agent's folder in home
     bountiful models          add or remove optional chat models
     bountiful tools           the tool groups available, and which agents use each
-    bountiful tools ID        an agent's tool groups, and what each still needs
-    bountiful add ID GROUP    turn a tool group on for an agent
-    bountiful remove ID GROUP turn it off; its settings are kept
-    bountiful keys ID GROUP   store an agent's keys for a group (--delete removes them)
-    bountiful register ID     register an agent's folder in home
-    bountiful forget ID       unregister an agent; its folder is untouched
+    bountiful tools ID        an agent's tool groups
+    bountiful add GROUP ID    add a tool group to an agent
+    bountiful remove GROUP ID remove a tool group, with its settings and keys
     bountiful version         show the installed version
     bountiful update          check for a new version and install it"""
 
@@ -207,16 +206,16 @@ def models() -> None:
     models_main()
 
 
-def _addon(action: str, *args, **kwargs) -> None:
-    """Run one of extend-a-bot's add-on actions, reporting its errors.
+def _plugin(action: str, *args) -> None:
+    """Run one of extend-a-bot's plugin actions, reporting its errors.
 
     Imported here rather than at the top, since keyring takes a moment
     to load and only these subcommands need it.
     """
-    from extend_a_bot import addons
+    from extend_a_bot import plugins
     try:
-        getattr(addons, action)(*args, **kwargs)
-    except addons.AddonError as e:
+        getattr(plugins, action)(*args)
+    except plugins.PluginError as e:
         _fail(str(e))
 
 
@@ -228,29 +227,19 @@ def tools(args: list[str]) -> None:
             for agent_id in registry.ids()
             if (registry.folder(agent_id) / "agent.json").is_file()
         ]
-        _addon("show_available", present)
+        _plugin("show_available", present)
     elif len(args) == 1:
-        _addon("show_agent", args[0], _folder(args[0]))
+        _plugin("show_agent", args[0], _folder(args[0]))
     else:
         sys.exit("Usage: bountiful tools [ID]")
 
 
-def add(agent_id: str, group: str) -> None:
-    _addon("add", agent_id, _folder(agent_id), group)
+def add(group: str, agent_id: str) -> None:
+    _plugin("add", agent_id, _folder(agent_id), group)
 
 
-def remove(agent_id: str, group: str) -> None:
-    _addon("remove", agent_id, _folder(agent_id), group)
-
-
-def keys(args: list[str]) -> None:
-    delete = "--delete" in args
-    rest = [a for a in args if a != "--delete"]
-    if len(rest) != 2:
-        sys.exit("Usage: bountiful keys ID GROUP [--delete]")
-    agent_id, group = rest
-    _folder(agent_id)  # the agent must be registered and present
-    _addon("keys", agent_id, group, delete=delete)
+def remove(group: str, agent_id: str) -> None:
+    _plugin("remove", agent_id, _folder(agent_id), group)
 
 
 def version() -> None:
@@ -378,11 +367,9 @@ def main() -> None:
         elif command == "tools":
             tools(rest)
         elif command == "add":
-            add(*_two(rest, "bountiful add ID GROUP"))
+            add(*_two(rest, "bountiful add GROUP ID"))
         elif command == "remove":
-            remove(*_two(rest, "bountiful remove ID GROUP"))
-        elif command == "keys":
-            keys(rest)
+            remove(*_two(rest, "bountiful remove GROUP ID"))
         elif command == "update":
             update()
         elif command in ("version", "-v", "-V", "--version"):
