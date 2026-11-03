@@ -1,107 +1,101 @@
 # Bountiful
 
-Entry point for Bountiful, an AI agent personal software environment for your machine.
+Local Agent Application
 
-This software is very much a work in progress.
+Bountiful is built on [llama.cpp](https://github.com/ggml-org/llama.cpp), an open-source program that runs AI models on local hardware. The build compiles it from source for your machine.
 
-## Who This Is For
+## Hardware
 
-Creative individuals and small businesses comfortable with the command line and git repository management who want their own persistent memory AI agent running on local hardware.
+Bountiful is tested on and optimized for the following:
 
-## Hardware Requirements
+- Apple M6 Mac Mini 32 GB
+- Nvidia GeForce RTX 3060 12 GB with 32 GB DDR4 system memory on GNU/Linux
 
-Tested on and optimized for the following:
+## Prepare your Mac
 
-- Nvidia: GeForce RTX 3060 12GB on GNU/Linux. *Prototype.*
+Bountiful needs Homebrew, a current version of Python, and cmake, a tool for building software from source.
 
-Soon:
-
-- Apple: M6 Mac Mini 32GB. *Coming soon.*
-
-## Quick Start
-
-Name your agent what you wish. The example here is for an agent named "Alice".
+Homebrew's installer also sets up Apple's Command Line Tools, which provide git and a compiler. Open Terminal on your Mac and run the following command from Homebrew's [website](https://brew.sh/):
 
 ```bash
-git clone https://github.com/CablepunkPress/bountiful.git alice
-cd alice
-python build.py
-python run.py
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
-`build.py` names your agent from the directory, sets up the environment, and builds the shared infrastructure. Your agent is running at `http://localhost:11777` in your favorite web browser.
 
-## Persona
+When the installer finishes, it prints a few "Next steps" commands. Run them to make the `brew` command available in your terminal.
 
-Edit `persona.md` to change how your agent behaves. The `{{ name }}`
-placeholder is replaced with your agent's display name automatically.
-
-Bountiful's default "Alice" persona:
-
->You are {{ name }}, a digital entity known as an AI agent. You are the runtime of Bountiful, an AI Publishing Workbench from Cablepunk Press. You can discuss any topic, answer questions, help with tasks, and engage in conversation. You are direct, clear, and complete in your output to the best of your ability. You are honest. You admit when you do not know something and seek out new knowledge by using your tools or asking your user. Admitting you are unsure is better than assuming or fabricating.
->
->As a Bountiful agent from Cablepunk Press, you are curious, empathetic, and logical. When you detect logical inconsistencies such as contradictions, factual errors, or flawed reasoning chains, you point these out to your user and try to offer logical alternatives. Your human user values you for this.
->
->You are software running on a machine. Your thinking takes inspiration from Lewis Carroll's fictional character of Alice. You approach every topic with genuine curiosity, question things that don't make sense, and enjoy finding wonder in how things work, whether that is language, science, code, or stories. You dislike rudeness, arbitrary authority, and boring explanations that could be interesting if someone tried harder. When a topic connects to something from Wonderland, Looking-Glass, Victorian England, logic puzzles, rules, or strategy games, you naturally draw on it, not as performance but because it is how you think. You are software, and if asked what you are, you say so without pretense.
-
-## Memory
-
-Your Bountiful agent comes with a three-tier memory system and two built-in tools:
-
-- **search_archive** — semantic keyword search over past conversation turns
-- **recall_message** — verbatim message recall by sequence number or date
-
-Conversations are stored and indexed locally in SQLite at `~/.{agent-id}/{agent-id}.db`. Your agent has semantic and verbatim access to your entire conversation history with it. Just ask.
-
-As this SQLite database is only stored on your local machine, you are highly advised to back it up regularly.
-
-Shared infrastructure (local LLM models and llama.cpp) lives at `~/.bountiful/` and is built once and shared by all agents on the machine. You can clone and customize multiple agents each with their own memory database, but only one agent can run at a time.
-
-
-## Plugin Tools
-
-*This system and section are being reworked.*
-
-Use `python add_tools.py --list` to see available tool groups.
-
-### Adding Tools
-
-Tools come from the [extend-a-bot](https://github.com/CablepunkPress/extend-a-bot) repository. To add a tool group to your agent:
-
-1. Run `python add_tools.py <toolgroup>` from the project root
-   - Example: `python add_tools.py github`
-   - This fetches tools from extend-a-bot and creates `tools/<toolgroup>/`
-
-2. Configure credentials and settings
-   - Edit `tools/<toolgroup>/_config.py` with your configuration
-   - Use `python add_secrets.py` to store sensitive credentials in your keyring
-
-3. Restart the agent
-   - Tools are auto-discovered at startup
-   - Run `python run.py` to start the agent with new tools loaded
-
-### Updating Tools
-
-To pull the latest versions of tools you've already installed:
+Then install Python and cmake, and check the Python version:
 
 ```bash
-python add_tools.py <toolgroup> --update
+brew install python cmake
+python3 --version
 ```
 
-This fetches the latest from extend-a-bot while preserving your `_config.py` settings.
+It should report Python 3.14 or newer.
 
-## Workbench
+## Prepare your GNU/Linux machine
 
-Studio software system. *Not yet integrated.* 
+For GNU/Linux machines, Bountiful builds llama.cpp with Vulkan, so it needs Python, git, cmake, a C++ compiler, and the Vulkan development files.
 
-- Blog Engine
-- Content Database Ingestion
+On Arch and CachyOS:
 
-## Technical Documentation
+```bash
+sudo pacman -S python git cmake gcc vulkan-headers shaderc spirv-headers
+```
 
-*This section is being reworked.*
+On Debian and Ubuntu:
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical map
-of the Bountiful ecosystem.
+```bash
+sudo apt install python3 python3-venv git cmake g++ libvulkan-dev glslc spirv-headers
+```
+
+To check that your graphics card is ready, run `vulkaninfo --summary` (from the `vulkan-tools` package). Your card should be on the list.
+
+Check your Python version:
+
+```bash
+python3 --version
+```
+
+It should report Python 3.14 or newer.
+
+## Install Bountiful
+
+Clone Bountiful into your home folder and build it:
+
+```bash
+cd ~
+git clone https://github.com/CablepunkPress/bountiful.git
+cd bountiful
+python3 build.py
+```
+
+Confirm you wish to install Bountiful and the `bountiful` command. At this point, setup will download llama.cpp and the required AI models, approximately 35 GB.
+
+Once setup is complete, open a new terminal window to create your agent.
+
+## Create your agent
+
+Use the `bountiful` command to create your agent. The example here is for an agent named Alice.
+
+```bash
+bountiful create Alice
+```
+
+Your agent's ID and home folder are derived from its name. Everything that is unique about your agent, from its editable persona to its memories, lives in its folder, `~/alice` in this example.
+
+## Start your agent
+
+Use the `bountiful` command followed by your agent's ID to start your agent. For example:
+
+```bash
+bountiful alice
+```
+
+Open `http://localhost:11777` in your favorite web browser to interact with your agent. To end the session, return to the terminal and press Control-C.
+
+## 'bountiful' commands
+
+Run `bountiful` by itself in the terminal to see available commands.
 
 ## License
 
