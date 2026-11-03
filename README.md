@@ -2,7 +2,7 @@
 
 Local Agent Application
 
-Bountiful is built on [llama.cpp](https://github.com/ggml-org/llama.cpp), an open-source program that runs AI models on local hardware. The build compiles it from source for your machine.
+Bountiful is built on [llama.cpp](https://github.com/ggml-org/llama.cpp), an open-source program that runs AI models on local hardware. Building Bountiful compiles it from source for your machine.
 
 ## Hardware
 
