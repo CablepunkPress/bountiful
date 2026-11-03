@@ -45,7 +45,6 @@ Usage:
     bountiful agents          the agents this machine knows
     bountiful forget ID       unregister an agent; its folder is untouched
     bountiful register ID     register an agent's folder in home
-    bountiful models          add or remove optional chat models
     bountiful tools           the tool groups available, and which agents use each
     bountiful tools ID        an agent's tool groups
     bountiful add GROUP ID    add a tool group to an agent
