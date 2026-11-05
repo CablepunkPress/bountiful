@@ -247,9 +247,7 @@ def disable_push() -> None:
     git("remote", "set-url", "--push", "origin", "no-push")
     git("config", "bountiful.pushDisabled", "true")
     print(
-        "    made this clone pull-only, since updates come from Bountiful's "
-        "releases\n"
-        "      (to undo: git remote set-url --push origin <url>)"
+        "    made this clone pull-only"
     )
 
 
