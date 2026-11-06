@@ -8,9 +8,9 @@ dynamic = ["version"]
 description = "Bountiful: local AI agents on your own machine"
 requires-python = ">=3.14"
 dependencies = [
-    "basic-bot @ git+https://github.com/CablepunkPress/basic-bot.git@v0.11.0",
-    "basic-ui @ git+https://github.com/CablepunkPress/basic-ui.git@v0.7.0",
-    "extend-a-bot @ git+https://github.com/CablepunkPress/extend-a-bot.git@v0.3.0",
+    "basic-bot @ git+https://github.com/CablepunkPress/basic-bot.git@main",
+    "basic-ui @ git+https://github.com/CablepunkPress/basic-ui.git@main",
+    "extend-a-bot @ git+https://github.com/CablepunkPress/extend-a-bot.git@main",
 ]
 
 [project.scripts]
