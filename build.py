@@ -38,6 +38,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 VENV = ROOT / ".venv"
+CUSTOM_TOOLS = ROOT / "custom" / "tools"
 
 # Where the bountiful command is linked: the usual folder for a user's
 # own commands on macOS and Linux.
@@ -323,6 +324,23 @@ def create_venv() -> None:
     print("    packages installed")
 
 
+def install_custom_dependencies() -> None:
+    """Install the Python packages that custom tool groups list in their tool.json."""
+    deps: set[str] = set()
+    for manifest in sorted(CUSTOM_TOOLS.glob("*/tool.json")):
+        try:
+            data = json.loads(manifest.read_text())
+        except (OSError, ValueError) as e:
+            print(f"    skipping {short(manifest)}: {e}")
+            continue
+        if isinstance(data, dict):
+            deps.update(str(d) for d in data.get("dependencies", []))
+    if not deps:
+        return
+    print(f"    installing what custom tools need: {', '.join(sorted(deps))}")
+    pip_install(*sorted(deps))
+
+
 def own_packages() -> list[str]:
     """Bountiful's own packages, as pinned in pyproject.toml.
 
@@ -450,6 +468,7 @@ def main() -> None:
     print("\nPython environment")
     disable_push()
     create_venv()
+    install_custom_dependencies()
 
     build_engine()
 

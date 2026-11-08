@@ -39,6 +39,8 @@ SUBCOMMANDS = (
 )
 
 EVERY_AGENT: tuple[str, ...] = ()
+CLONE = Path(sys.prefix).parent
+CUSTOM_TOOLS = CLONE / "custom" / "tools"
 
 USAGE = """\
 Usage:
@@ -99,13 +101,13 @@ def _folder(agent_id: str) -> Path:
 def start(agent_id: str) -> None:
     folder = _folder(agent_id)
     from basic_ui.launch import launch
-    launch(folder, folder / DATA_DIR, EVERY_AGENT, folder / "tools")
+    launch(folder, folder / DATA_DIR, EVERY_AGENT, CUSTOM_TOOLS)
 
 
 def chat(agent_id: str) -> None:
     folder = _folder(agent_id)
     from basic_bot.terminal import chat as terminal_chat
-    terminal_chat(folder, folder / DATA_DIR, EVERY_AGENT, folder / "tools")
+    terminal_chat(folder, folder / DATA_DIR, EVERY_AGENT, CUSTOM_TOOLS)
 
 
 def _in_home(agent_id: str) -> bool:
@@ -228,19 +230,19 @@ def tools(args: list[str]) -> None:
             for agent_id in registry.ids()
             if (registry.folder(agent_id) / "agent.json").is_file()
         ]
-        _plugin("show_available", present)
+        _plugin("show_available", present, EVERY_AGENT, CUSTOM_TOOLS)
     elif len(args) == 1:
-        _plugin("show_agent", args[0], _folder(args[0]))
+        _plugin("show_agent", args[0], _folder(args[0]), EVERY_AGENT, CUSTOM_TOOLS)
     else:
         sys.exit("Usage: bountiful tools [ID]")
 
 
 def add(group: str, agent_id: str) -> None:
-    _plugin("add", agent_id, _folder(agent_id), group)
+    _plugin("add", agent_id, _folder(agent_id), group, EVERY_AGENT, CUSTOM_TOOLS)
 
 
 def remove(group: str, agent_id: str) -> None:
-    _plugin("remove", agent_id, _folder(agent_id), group)
+    _plugin("remove", agent_id, _folder(agent_id), group, EVERY_AGENT, CUSTOM_TOOLS)
 
 
 def version() -> None:
@@ -255,7 +257,7 @@ def update() -> None:
     other branch, such as main for development, is left to git pull
     and python3 build.py.
     """
-    clone = Path(sys.prefix).parent
+    clone = CLONE
 
     if not (clone / ".git").is_dir():
         _fail(
