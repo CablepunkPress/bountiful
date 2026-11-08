@@ -38,6 +38,8 @@ SUBCOMMANDS = (
     "update", "version", "help",
 )
 
+EVERY_AGENT: tuple[str, ...] = ()
+
 USAGE = """\
 Usage:
     bountiful create NAME     create a new agent, as in 'bountiful create Alice'
@@ -97,13 +99,13 @@ def _folder(agent_id: str) -> Path:
 def start(agent_id: str) -> None:
     folder = _folder(agent_id)
     from basic_ui.launch import launch
-    launch(folder, folder / DATA_DIR)
+    launch(folder, folder / DATA_DIR, EVERY_AGENT, folder / "tools")
 
 
 def chat(agent_id: str) -> None:
     folder = _folder(agent_id)
     from basic_bot.terminal import chat as terminal_chat
-    terminal_chat(folder, folder / DATA_DIR)
+    terminal_chat(folder, folder / DATA_DIR, EVERY_AGENT, folder / "tools")
 
 
 def _in_home(agent_id: str) -> bool:
