@@ -39,6 +39,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 VENV = ROOT / ".venv"
 CUSTOM_TOOLS = ROOT / "custom" / "tools"
+CUSTOM_PROFILE = ROOT / "custom" / "profile"
 
 # Where the bountiful command is linked: the usual folder for a user's
 # own commands on macOS and Linux.
@@ -372,7 +373,9 @@ def build_engine() -> None:
     """llama.cpp, the hardware profile, and the models, by the engine."""
     global _in_engine
     _in_engine = True
-    result = subprocess.run([str(venv_python()), "-m", "basic_bot"])
+    result = subprocess.run(
+        [str(venv_python()), "-m", "basic_bot", str(CUSTOM_PROFILE)]
+    )
     _in_engine = False
     if result.returncode != 0:
         # basic_bot has already explained what failed and what to do.
