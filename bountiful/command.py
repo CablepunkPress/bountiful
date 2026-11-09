@@ -41,7 +41,7 @@ SUBCOMMANDS = (
     "update", "version", "help",
 )
 
-EVERY_AGENT: tuple[str, ...] = ()
+BUILT_IN: tuple[str, ...] = ()
 CLONE = Path(sys.prefix).parent
 CUSTOM_TOOLS = CLONE / "custom" / "tools"
 
@@ -100,12 +100,12 @@ def _folder(agent_id: str) -> Path:
 
 
 def _open(folder: Path, log_to_terminal: bool) -> "Session":
-    """The agent's session, with the every-agent groups and custom tools."""
+    """The agent's session, with the built-in groups and custom tools."""
     from basic_bot.session import Session, SessionError
     try:
         return Session.open(
             folder, folder / DATA_DIR, log_to_terminal=log_to_terminal,
-            every_agent=EVERY_AGENT, custom_tools=CUSTOM_TOOLS,
+            built_in=BUILT_IN, custom_tools=CUSTOM_TOOLS,
         )
     except SessionError as e:
         _fail(str(e))
@@ -247,19 +247,19 @@ def tools(args: list[str]) -> None:
             for agent_id in registry.ids()
             if (registry.folder(agent_id) / "agent.json").is_file()
         ]
-        _plugin("show_available", present, EVERY_AGENT, CUSTOM_TOOLS)
+        _plugin("show_available", present, BUILT_IN, CUSTOM_TOOLS)
     elif len(args) == 1:
-        _plugin("show_agent", args[0], _folder(args[0]), EVERY_AGENT, CUSTOM_TOOLS)
+        _plugin("show_agent", args[0], _folder(args[0]), BUILT_IN, CUSTOM_TOOLS)
     else:
         sys.exit("Usage: bountiful tools [ID]")
 
 
 def add(group: str, agent_id: str) -> None:
-    _plugin("add", agent_id, _folder(agent_id), group, EVERY_AGENT, CUSTOM_TOOLS)
+    _plugin("add", agent_id, _folder(agent_id), group, BUILT_IN, CUSTOM_TOOLS)
 
 
 def remove(group: str, agent_id: str) -> None:
-    _plugin("remove", agent_id, _folder(agent_id), group, EVERY_AGENT, CUSTOM_TOOLS)
+    _plugin("remove", agent_id, _folder(agent_id), group, BUILT_IN, CUSTOM_TOOLS)
 
 
 def version() -> None:
