@@ -14,7 +14,7 @@ the registry, and sessions, belong to basic-bot.
 import os
 import sys
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 import bountiful
 from basic_bot import registry
@@ -27,6 +27,9 @@ from basic_bot.agent import (
     load_agent,
 )
 from basic_bot.paths import AGENTS_HOME
+
+if TYPE_CHECKING:
+    from basic_bot.session import Session
 
 # Every subcommand. The first word after 'bountiful' is either one of
 # these or a registered id, and these are checked first, so no agent's
@@ -96,18 +99,32 @@ def _folder(agent_id: str) -> Path:
     return folder
 
 
+def _open(folder: Path, log_to_terminal: bool) -> "Session":
+    """The agent's session, with the every-agent groups and custom tools."""
+    from basic_bot.session import Session, SessionError
+    try:
+        return Session.open(
+            folder, folder / DATA_DIR, log_to_terminal=log_to_terminal,
+            every_agent=EVERY_AGENT, custom_tools=CUSTOM_TOOLS,
+        )
+    except SessionError as e:
+        _fail(str(e))
+
+
 # --- Subcommands ---
 
 def start(agent_id: str) -> None:
     folder = _folder(agent_id)
     from basic_ui.launch import launch
-    launch(folder, folder / DATA_DIR, EVERY_AGENT, CUSTOM_TOOLS)
+    with _open(folder, log_to_terminal=True) as session:
+        launch(session)
 
 
 def chat(agent_id: str) -> None:
     folder = _folder(agent_id)
     from basic_bot.terminal import chat as terminal_chat
-    terminal_chat(folder, folder / DATA_DIR, EVERY_AGENT, CUSTOM_TOOLS)
+    with _open(folder, log_to_terminal=False) as session:
+        terminal_chat(session)
 
 
 def _in_home(agent_id: str) -> bool:
