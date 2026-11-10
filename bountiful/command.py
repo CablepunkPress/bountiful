@@ -45,7 +45,7 @@ SUBCOMMANDS = (
     "update", "version", "help",
 )
 
-BUILT_IN: tuple[str, ...] = ()
+BUILT_IN: tuple[str, ...] = ("docs",)
 CLONE = Path(sys.prefix).parent
 CUSTOM_TOOLS = CLONE / "custom" / "tools"
 
