@@ -12,7 +12,9 @@ the registry, and sessions, belong to basic-bot.
 """
 
 import os
+import shutil
 import sys
+import textwrap
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
@@ -25,11 +27,13 @@ from basic_bot.agent import (
     id_from,
     id_problem,
     load_agent,
+    tool_groups,
 )
 from basic_bot.paths import AGENTS_HOME
 
 if TYPE_CHECKING:
     from basic_bot.session import Session
+    from basic_bot.tools import Group
 
 # Every subcommand. The first word after 'bountiful' is either one of
 # these or a registered id, and these are checked first, so no agent's
@@ -52,10 +56,10 @@ Usage:
     bountiful agents          the agents this machine knows
     bountiful forget ID       unregister an agent; its folder is untouched
     bountiful register ID     register an agent's folder in home
-    bountiful tools           the tool groups available, and which agents use each
-    bountiful tools ID        an agent's tool groups
-    bountiful add GROUP ID    add a tool group to an agent
-    bountiful remove GROUP ID remove a tool group, with its settings and keys
+    bountiful tools           the plugin tools available, and which agents use each
+    bountiful tools ID        an agent's tools, and where each comes from
+    bountiful add GROUP ID    add a plugin tool to an agent
+    bountiful remove GROUP ID remove a plugin tool and its settings and keys
     bountiful version         show the installed version
     bountiful update          check for a new version and install it"""
 
@@ -226,7 +230,7 @@ def models() -> None:
     models_main()
 
 
-def _plugin(action: str, *args) -> None:
+def _plugin(action: str, *args):
     """Run one of extend-a-bot's plugin actions, reporting its errors.
 
     Imported here rather than at the top, since keyring takes a moment
@@ -234,32 +238,113 @@ def _plugin(action: str, *args) -> None:
     """
     from extend_a_bot import plugins
     try:
-        getattr(plugins, action)(*args)
+        return getattr(plugins, action)(*args)
     except plugins.PluginError as e:
         _fail(str(e))
 
 
+def _row(group: "Group") -> tuple[str, str, str]:
+    """A group's name, source, and tools, for listing."""
+    return group.name, group.source, ", ".join(group.tools)
+
+
+def _rows(rows: list[tuple[str, str, str]], columns: list[tuple[str, str, str]]) -> None:
+    """Print rows of a name, a source, and tools, in columns that fit every row in columns."""
+    if not rows:
+        print("  none")
+        return
+    name_width = max(len(r[0]) for r in columns) + 4
+    source_width = max(len(r[1]) for r in columns) + 4
+    for name, source, names in rows:
+        print(f"  {name:<{name_width}}{source:<{source_width}}{names}")
+
+
+def _say(text: str, indent: int) -> None:
+    """Print text wrapped to the terminal's width, every line indented."""
+    width = max(min(shutil.get_terminal_size().columns, 100), 40)
+    pad = " " * indent
+    print(textwrap.fill(
+        text, width=width, initial_indent=pad, subsequent_indent=pad,
+        break_on_hyphens=False, break_long_words=False,
+    ))
+
+
+def _show_plugins() -> None:
+    """The plugins any agent can add, and which agents use each."""
+    groups = _plugin("available", CUSTOM_TOOLS)
+    users: dict[str, list[str]] = {}
+    for agent_id in registry.ids():
+        folder = registry.folder(agent_id)
+        if not (folder / "agent.json").is_file():
+            continue
+        for name in tool_groups(load_agent(folder)):
+            users.setdefault(name, []).append(agent_id)
+
+    print("Plugin tools available\n")
+    if not groups:
+        print("  none installed")
+        return
+    rows = [_row(g) for _, g in sorted(groups.items())]
+    _rows(rows, rows)
+    for name, group in sorted(groups.items()):
+        print()
+        _say(f"{name}: {group.description}", indent=2)
+        _say(f"used by: {', '.join(users.get(name, [])) or 'no agent'}", indent=4)
+
+
+def _show_agent(agent_id: str) -> None:
+    """Every tool an agent has, by kind, and where each comes from."""
+    folder = _folder(agent_id)
+    from basic_bot.tools import MEMORY_GROUP, offered_groups, read_group
+
+    installed = offered_groups()
+    plugins = _plugin("available", CUSTOM_TOOLS)
+    memory = [_row(read_group(MEMORY_GROUP, "basic-bot"))]
+    built_in = [
+        _row(read_group(*installed[name])) if name in installed
+        else (name, "not installed", "")
+        for name in BUILT_IN
+    ]
+    added = [
+        _row(plugins[name]) if name in plugins else (name, "not installed", "")
+        for name in sorted(tool_groups(load_agent(folder)))
+        if name not in BUILT_IN
+    ]
+    columns = memory + built_in + added
+
+    print("Memory")
+    _rows(memory, columns)
+    print("\nBuilt-in")
+    _rows(built_in, columns)
+    print("\nPlugins")
+    _rows(added, columns)
+
+
 def tools(args: list[str]) -> None:
-    """The tool groups available, or one agent's."""
+    """The plugins available, or every tool one agent has."""
     if not args:
-        present = [
-            (agent_id, registry.folder(agent_id))
-            for agent_id in registry.ids()
-            if (registry.folder(agent_id) / "agent.json").is_file()
-        ]
-        _plugin("show_available", present, BUILT_IN, CUSTOM_TOOLS)
+        _show_plugins()
     elif len(args) == 1:
-        _plugin("show_agent", args[0], _folder(args[0]), BUILT_IN, CUSTOM_TOOLS)
+        _show_agent(args[0])
     else:
         sys.exit("Usage: bountiful tools [ID]")
 
 
+def _refuse_built_in(group: str) -> None:
+    """Memory and the built-in groups can't be added or removed."""
+    from basic_bot.tools import MEMORY_GROUP
+    if group == MEMORY_GROUP.name or group in BUILT_IN:
+        _fail(f"{group} is built in, so it can't be added or removed.")
+
+
 def add(group: str, agent_id: str) -> None:
-    _plugin("add", agent_id, _folder(agent_id), group, BUILT_IN, CUSTOM_TOOLS)
+    _refuse_built_in(group)
+    _plugin("add", agent_id, _folder(agent_id), group, CUSTOM_TOOLS)
 
 
 def remove(group: str, agent_id: str) -> None:
-    _plugin("remove", agent_id, _folder(agent_id), group, BUILT_IN, CUSTOM_TOOLS)
+    _refuse_built_in(group)
+    _plugin("remove", agent_id, _folder(agent_id), group, CUSTOM_TOOLS)
 
 
 def version() -> None:
