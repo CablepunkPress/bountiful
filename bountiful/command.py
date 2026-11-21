@@ -295,11 +295,11 @@ def _show_plugins() -> None:
 def _show_agent(agent_id: str) -> None:
     """Every tool an agent has, by kind, and where each comes from."""
     folder = _folder(agent_id)
-    from basic_bot.tools import MEMORY_GROUP, offered_groups, read_group
+    from basic_bot.tools import CORE_GROUPS, offered_groups, read_group
 
     installed = offered_groups()
     plugins = _plugin("available", CUSTOM_TOOLS)
-    memory = [_row(read_group(MEMORY_GROUP, "basic-bot"))]
+    core = [_row(read_group(folder, "basic-bot")) for folder in CORE_GROUPS]
     built_in = [
         _row(read_group(*installed[name])) if name in installed
         else (name, "not installed", "")
@@ -310,10 +310,10 @@ def _show_agent(agent_id: str) -> None:
         for name in sorted(tool_groups(load_agent(folder)))
         if name not in BUILT_IN
     ]
-    columns = memory + built_in + added
+    columns = core + built_in + added
 
-    print("Memory")
-    _rows(memory, columns)
+    print("Core")
+    _rows(core, columns)
     print("\nBuilt-in")
     _rows(built_in, columns)
     print("\nPlugins")
@@ -331,9 +331,9 @@ def tools(args: list[str]) -> None:
 
 
 def _refuse_built_in(group: str) -> None:
-    """Memory and the built-in groups can't be added or removed."""
-    from basic_bot.tools import MEMORY_GROUP
-    if group == MEMORY_GROUP.name or group in BUILT_IN:
+    """The core and built-in groups can't be added or removed."""
+    from basic_bot.tools import CORE_GROUPS
+    if group in [folder.name for folder in CORE_GROUPS] or group in BUILT_IN:
         _fail(f"{group} is built in, so it can't be added or removed.")
 
 
